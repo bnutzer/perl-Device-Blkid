@@ -1,0 +1,7 @@
+lib/Sys/Blkid.pm		Perl interface to the package
+Blkid.xs			Perl extension
+t/00-load.t			Basic tests -- module loading
+t/01-call.t			Basic tests -- function calls
+Makefile.PL			MakeMaker make file
+MANIFEST			This list of files
+README				Readme
