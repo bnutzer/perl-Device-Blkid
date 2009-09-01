@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.1 2009/08/31 22:48:04 bastian Exp $
+ * $Id: Blkid.xs,v 1.2 2009/09/01 15:54:39 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -13,18 +13,27 @@
 
 #include <blkid/blkid.h>
 
+/*
+m = sv_newmortal();
+sv_setref_pv(m, "OpenSER::Message", (void *)_msg);
+SvREADONLY_on(SvRV(m));
+*/
+
+blkid_cache sv2cache(SV *sv) {
+	blkid_cache cache = NULL;
+	if (SvROK(sv)) {
+		sv = SvRV(sv);
+		if (SvIOK(sv)) {
+			if (sv_derived_from(sv, "Sys::Blkid::Cache")) {
+				cache = INT2PTR(blkid_cache, SvIV(sv));
+			}
+		}
+	}
+	return cache; /* In case of error above... */
+}
+
+
 MODULE = Sys::Blkid PACKAGE = Sys::Blkid
-
-SV *
-blkid_devno_to_devname(devno)
-	int devno
-	PREINIT:
-		blkid_cache cache = NULL;
-	PPCODE:
-		blkid_get_cache(&cache, NULL);
-		XPUSHs(sv_2mortal(newSVpv(blkid_devno_to_devname(devno), 0)));
-
-
 
 ### typedef struct blkid_struct_dev *blkid_dev;
 ### typedef struct blkid_struct_cache *blkid_cache;
@@ -39,7 +48,33 @@ blkid_devno_to_devname(devno)
 ### 
 ### /* cache.c */
 ### extern void blkid_put_cache(blkid_cache cache);
+
+SV *
+blkid_put_cache(cache)
+	SV *cache
+	PREINIT:
+		blkid_cache real_cache = sv2cache(cache);
+	PPCODE:
+		blkid_put_cache(real_cache);
+		XPUSHs(&PL_sv_undef);
+
+
 ### extern int blkid_get_cache(blkid_cache *cache, const char *filename);
+
+SV *
+blkid_get_cache(filename)
+	char *filename
+	PREINIT:
+		blkid_cache real_cache;
+		int ret;
+	PPCODE:
+//		TODO XXX TODO XXX TODO
+		if ((ret = blkid_get_cache(&real_cache, filename)) != 0) {
+			fprintf(stderr, "%s: error creating cache (%d)\n",
+				argv[0], ret);
+		}
+
+
 ### extern void blkid_gc_cache(blkid_cache cache);
 ### 
 ### /* dev.c */
@@ -51,9 +86,31 @@ blkid_devno_to_devname(devno)
 ### extern int blkid_dev_next(blkid_dev_iterate iterate, blkid_dev *dev);
 ### extern void blkid_dev_iterate_end(blkid_dev_iterate iterate);
 ### 
-### /* devno.c */
-### extern char *blkid_devno_to_devname(dev_t devno);
-### 
+
+
+#
+# blkid_devno_to_devname(devno)
+#
+# Returns devicename of device number major*256+minor
+# Perl wrapper for correct argument types
+#
+
+SV *
+_blkid_devno_to_devname(devno)
+	dev_t devno
+	PREINIT:
+		blkid_cache cache = NULL;
+		char *ret;
+	PPCODE:
+		blkid_get_cache(&cache, NULL);
+		ret = blkid_devno_to_devname(devno);
+		if (ret) {
+			XPUSHs(sv_2mortal(newSVpv(ret, 0)));
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+
 ### /* devname.c */
 ### extern int blkid_probe_all(blkid_cache cache);
 ### extern int blkid_probe_all_new(blkid_cache cache);
@@ -98,6 +155,9 @@ blkid_devno_to_devname(devno)
 ### 
 ### /* evaluate.c */
 ### extern int blkid_send_uevent(const char *devname, const char *action);
+
+
+
 ### extern char *blkid_evaluate_tag(const char *token, const char *value,
 ### 				blkid_cache *cache);
 ### 
