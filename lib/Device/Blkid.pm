@@ -1,4 +1,4 @@
-# $Id: Blkid.pm,v 1.1 2009/08/31 22:48:04 bastian Exp $
+# $Id: Blkid.pm,v 1.2 2009/09/01 15:52:08 bastian Exp $
 # Copyright (c) 2007 Collax GmbH
 package Sys::Blkid;
 
@@ -9,7 +9,39 @@ require Exporter;
 require DynaLoader;
 
 our @ISA = qw(Exporter DynaLoader);
-our @EXPORT = qw ( BLKID_DEV_FIND BLKID_DEV_CREATE BLKID_DEV_VERIFY BLKID_DEV_NORMAL );
+
+our %EXPORT_TAGS = (
+	consts	=> [qw(
+			BLKID_DEV_FIND
+			BLKID_DEV_CREATE
+			BLKID_DEV_VERIFY
+			BLKID_DEV_NORMAL
+
+			BLKID_PROBREQ_LABEL
+			BLKID_PROBREQ_LABELRAW
+			BLKID_PROBREQ_UUID
+			BLKID_PROBREQ_UUIDRAW
+			BLKID_PROBREQ_TYPE
+			BLKID_PROBREQ_SECTYPE
+			BLKID_PROBREQ_USAGE
+			BLKID_PROBREQ_VERSION
+
+			BLKID_USAGE_FILESYSTEM
+			BLKID_USAGE_RAID
+			BLKID_USAGE_CRYPTO
+			BLKID_USAGE_OTHER
+
+			BLKID_FLTR_NOTIN
+			BLKID_FLTR_ONLYIN
+		)],
+	funcs	=> [qw(
+			blkid_put_cache
+			blkid_get_cache
+			blkid_devno_to_devname
+		)],
+);
+Exporter::export_ok_tags('consts');
+Exporter::export_ok_tags('funcs');
 
 our $VERSION = "1.0";
 
@@ -54,5 +86,50 @@ use constant BLKID_USAGE_OTHER		=> (1 << 4);
 use constant BLKID_FLTR_NOTIN		=> 1;
 use constant BLKID_FLTR_ONLYIN		=> 2;
 
+
+
+
+=head2 Function blkid_devno_to_devname(major, minor)
+
+Return device name for device with given major/minor number combination.
+
+ my $name = blkid_devno_to_devname(8, 1); # Is "/dev/sda"
+ if (!blkid_devno_to_devname(0, 1)) {
+ 	print("No Device 0, 1 found\n");
+ }
+
+=head2 Function blkid_devno_to_devname(devno)
+
+ my $name = blkid_devno_to_devname(2049); # Is "/dev/sda"
+ if (!blkid_devno_to_devname(1)) {
+ 	print("No Device 1 found\n");
+ }
+
+=cut
+
+sub blkid_devno_to_devname {
+	my ($a1, $a2, @r) = @_;
+
+	if (scalar(@r)) {
+		die('Syntax error in blkid_devno_to_devname');
+	}
+
+	if (!defined($a1)) {
+		die('Syntax error in blkid_devno_to_devname');
+	}
+
+	if ($a1 !~ m/^[0-9]*$/) {
+		die('Syntax error in blkid_devno_to_devname');
+	}
+
+	if (defined($a2)) {
+		if ($a2 !~ m/^[0-9]*$/) {
+			die('Syntax error in blkid_devno_to_devname');
+		}
+		$a1 = ($a1 << 8) + $a2;
+	}
+
+	return _blkid_devno_to_devname($a1);
+}
 
 1;
