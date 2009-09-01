@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.2 2009/09/01 15:54:39 bastian Exp $
+ * $Id: Blkid.xs,v 1.3 2009/09/01 21:30:12 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -24,7 +24,7 @@ blkid_cache sv2cache(SV *sv) {
 	if (SvROK(sv)) {
 		sv = SvRV(sv);
 		if (SvIOK(sv)) {
-			if (sv_derived_from(sv, "Sys::Blkid::Cache")) {
+			if (sv_derived_from(sv, "Device::Blkid::Cache")) {
 				cache = INT2PTR(blkid_cache, SvIV(sv));
 			}
 		}
@@ -33,7 +33,7 @@ blkid_cache sv2cache(SV *sv) {
 }
 
 
-MODULE = Sys::Blkid PACKAGE = Sys::Blkid
+MODULE = Device::Blkid PACKAGE = Device::Blkid
 
 ### typedef struct blkid_struct_dev *blkid_dev;
 ### typedef struct blkid_struct_cache *blkid_cache;
@@ -70,8 +70,7 @@ blkid_get_cache(filename)
 	PPCODE:
 //		TODO XXX TODO XXX TODO
 		if ((ret = blkid_get_cache(&real_cache, filename)) != 0) {
-			fprintf(stderr, "%s: error creating cache (%d)\n",
-				argv[0], ret);
+			fprintf(stderr, "error creating cache (%d)\n", ret);
 		}
 
 

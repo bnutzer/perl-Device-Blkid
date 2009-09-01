@@ -3,10 +3,10 @@ use ExtUtils::MakeMaker;
 use ExtUtils::Liblist;
 
 WriteMakefile(
-    NAME                => 'Sys::Blkid',
+    NAME                => 'Device::Blkid',
     AUTHOR              => 'Bastian Friedrich <bastian.friedrich@collax.com>',
-    VERSION_FROM        => 'lib/Sys/Blkid.pm',
-    ABSTRACT_FROM       => 'lib/Sys/Blkid.pm',
+    VERSION_FROM        => 'lib/Device/Blkid.pm',
+    ABSTRACT_FROM       => 'lib/Device/Blkid.pm',
     PREREQ_PM           => {
         'Exporter'      => 0,
         'Test::More'    => 0,
@@ -19,5 +19,5 @@ WriteMakefile(
 
     EXE_FILES           => [],
     dist => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-    clean => { FILES => 'Sys-Blkid-*' },
+    clean => { FILES => 'Device-Blkid-*' },
 );

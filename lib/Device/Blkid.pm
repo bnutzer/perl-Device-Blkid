@@ -1,6 +1,6 @@
-# $Id: Blkid.pm,v 1.2 2009/09/01 15:52:08 bastian Exp $
+# $Id: Blkid.pm,v 1.3 2009/09/01 21:30:12 bastian Exp $
 # Copyright (c) 2007 Collax GmbH
-package Sys::Blkid;
+package Device::Blkid;
 
 use 5.006001;
 use strict;
@@ -47,7 +47,7 @@ our $VERSION = "1.0";
 
 =head1 NAME
 
-Sys::Blkid - Interface to libblkid
+Device::Blkid - Interface to libblkid
 
 =head1 VERSION
 
@@ -55,11 +55,11 @@ Version 1.0
 
 =cut
 
-bootstrap Sys::Blkid;
+bootstrap Device::Blkid;
 
 =head1 SYNOPSIS
 
- use Sys::Blkid;
+ use Device::Blkid;
 
 =cut
 

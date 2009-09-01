@@ -1,4 +1,4 @@
-lib/Sys/Blkid.pm		Perl interface to the package
+lib/Device/Blkid.pm		Perl interface to the package
 Blkid.xs			Perl extension
 typemap				Perl typemap
 t/00-load.t			Basic tests -- module loading
