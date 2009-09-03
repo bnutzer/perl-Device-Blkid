@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.3 2009/09/01 21:30:12 bastian Exp $
+ * $Id: Blkid.xs,v 1.4 2009/09/03 14:55:05 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -14,22 +14,79 @@
 #include <blkid/blkid.h>
 
 /*
-m = sv_newmortal();
-sv_setref_pv(m, "OpenSER::Message", (void *)_msg);
-SvREADONLY_on(SvRV(m));
-*/
-
-blkid_cache sv2cache(SV *sv) {
+ * Bad code
+ * TODO
+ * _one_ function that does the same job...
+ */
+blkid_cache sv2cache(SV *sv, char *func) {
 	blkid_cache cache = NULL;
+	char err[256] = "Cache error";
 	if (SvROK(sv)) {
-		sv = SvRV(sv);
-		if (SvIOK(sv)) {
-			if (sv_derived_from(sv, "Device::Blkid::Cache")) {
+		if (sv_derived_from(sv, "Device::Blkid::Cache")) {
+			sv = SvRV(sv);
+			if (SvIOK(sv)) {
 				cache = INT2PTR(blkid_cache, SvIV(sv));
+			} else {
+				snprintf(err, sizeof(err)-1, "%s: Invalid argument (internal error)", func);
 			}
+		} else {
+			snprintf(err, sizeof(err)-1, "%s: Invalid argument (not a Device::Blkid::Cache object)", func);
 		}
+	} else {
+		snprintf(err, sizeof(err)-1, "%s: Invalid argument (not an object)", func);
 	}
+	if (!cache)
+		warn(err);
+
 	return cache; /* In case of error above... */
+}
+
+
+blkid_dev sv2dev(SV *sv, char *func) {
+	blkid_dev dev= NULL;
+	char err[256] = "Device error";
+	if (SvROK(sv)) {
+		if (sv_derived_from(sv, "Device::Blkid::Device")) {
+			sv = SvRV(sv);
+			if (SvIOK(sv)) {
+				dev = INT2PTR(blkid_dev, SvIV(sv));
+			} else {
+				snprintf(err, sizeof(err)-1, "%s: Invalid argument (internal error)", func);
+			}
+		} else {
+			snprintf(err, sizeof(err)-1, "%s: Invalid argument (not a Device::Blkid::Device object)", func);
+		}
+	} else {
+		snprintf(err, sizeof(err)-1, "%s: Invalid argument (not an object)", func);
+	}
+	if (!dev)
+		warn(err);
+
+	return dev; /* In case of error above... */
+}
+
+
+blkid_probe sv2probe(SV *sv, char *func) {
+	blkid_probe probe = NULL;
+	char err[256] = "Probe error";
+	if (SvROK(sv)) {
+		if (sv_derived_from(sv, "Device::Blkid::Probe")) {
+			sv = SvRV(sv);
+			if (SvIOK(sv)) {
+				probe = INT2PTR(blkid_probe, SvIV(sv));
+			} else {
+				snprintf(err, sizeof(err)-1, "%s: Invalid argument (internal error)", func);
+			}
+		} else {
+			snprintf(err, sizeof(err)-1, "%s: Invalid argument (not a Device::Blkid::Probe object)", func);
+		}
+	} else {
+		snprintf(err, sizeof(err)-1, "%s: Invalid argument (not an object)", func);
+	}
+	if (!probe)
+		warn(err);
+
+	return probe; /* In case of error above... */
 }
 
 
@@ -49,36 +106,80 @@ MODULE = Device::Blkid PACKAGE = Device::Blkid
 ### /* cache.c */
 ### extern void blkid_put_cache(blkid_cache cache);
 
+# //  TODO: Segfaults XXX TODO XXX
+# // Subsequent calls segfault (not the call to put_cache itself)
 SV *
 blkid_put_cache(cache)
 	SV *cache
 	PREINIT:
-		blkid_cache real_cache = sv2cache(cache);
+		blkid_cache real_cache = sv2cache(cache, "blkid_put_cache");
 	PPCODE:
-		blkid_put_cache(real_cache);
-		XPUSHs(&PL_sv_undef);
+		if (real_cache) {
+			blkid_put_cache(real_cache);
+			XPUSHs(sv_2mortal(newSViv(1)));
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
 
 
 ### extern int blkid_get_cache(blkid_cache *cache, const char *filename);
 
 SV *
-blkid_get_cache(filename)
-	char *filename
+_blkid_get_cache(sv_filename)
+	SV *sv_filename
 	PREINIT:
 		blkid_cache real_cache;
+		SV *cache;
 		int ret;
+		char *filename;
 	PPCODE:
-//		TODO XXX TODO XXX TODO
+
+		if (SvOK(sv_filename)) { filename = SvPV_nolen(sv_filename); } else { filename = NULL; }
+
 		if ((ret = blkid_get_cache(&real_cache, filename)) != 0) {
-			fprintf(stderr, "error creating cache (%d)\n", ret);
+			warn("error creating cache (%d)\n", ret);
+			XPUSHs(&PL_sv_undef);
+		} else {
+			cache = sv_newmortal();
+			sv_setref_pv(cache, "Device::Blkid::Cache", (void *)real_cache);
+			SvREADONLY_on(SvRV(cache));
+			XPUSHs(cache);
 		}
 
 
+
 ### extern void blkid_gc_cache(blkid_cache cache);
-### 
+
+SV *
+blkid_gc_cache(cache)
+	SV *cache
+	PREINIT:
+		blkid_cache real_cache = sv2cache(cache, "blkid_gc_cache");
+	PPCODE:
+		if (real_cache) {
+			blkid_gc_cache(real_cache);
+			XPUSHs(sv_2mortal(newSViv(1)));
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
 ### /* dev.c */
 ### extern const char *blkid_dev_devname(blkid_dev dev);
-### 
+SV *
+blkid_dev_devname(dev)
+	SV *dev
+	PREINIT:
+		blkid_dev real_dev = sv2dev(dev, "blkid_dev_devname");
+		const char *ret;
+	PPCODE:
+		if (ret = blkid_dev_devname(real_dev)) {
+			XPUSHs(sv_2mortal(newSVpv(ret, 0)));
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+
+### // TODO XXX TODO XXX
 ### extern blkid_dev_iterate blkid_dev_iterate_begin(blkid_cache cache);
 ### extern int blkid_dev_set_search(blkid_dev_iterate iter,
 ### 				char *search_type, char *search_value);
@@ -112,21 +213,139 @@ _blkid_devno_to_devname(devno)
 
 ### /* devname.c */
 ### extern int blkid_probe_all(blkid_cache cache);
+
+SV *
+blkid_probe_all(cache)
+	SV *cache
+	PREINIT:
+		blkid_cache real_cache = sv2cache(cache, "blkid_probe_all");
+		int ret;
+	PPCODE:
+		if (real_cache) {
+			ret = blkid_probe_all(real_cache);
+			XPUSHs(sv_2mortal(newSViv(ret)));
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
 ### extern int blkid_probe_all_new(blkid_cache cache);
+
+SV *
+blkid_probe_all_new(cache)
+	SV *cache
+	PREINIT:
+		blkid_cache real_cache = sv2cache(cache, "blkid_probe_all_new");
+		int ret;
+	PPCODE:
+		if (real_cache) {
+			ret = blkid_probe_all_new(real_cache);
+			XPUSHs(sv_2mortal(newSViv(ret)));
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+
+
 ### extern blkid_dev blkid_get_dev(blkid_cache cache, const char *devname,
 ### 			       int flags);
-### 
+
+
+SV *
+blkid_get_dev(cache, _devname, flags)
+	SV *cache
+	SV *_devname
+	IV flags
+	PREINIT:
+		blkid_cache real_cache = sv2cache(cache, "blkid_probe_all_new");
+		char *devname = NULL;
+		blkid_dev dev;
+		SV *_dev;
+	PPCODE:
+		if (!SvOK(_devname)) {
+			warn("blkid_get_dev: invalid devname argument");
+		} else {
+			if (!SvPOK(_devname)) {
+				warn("blkid_get_dev: invalid devname argument");
+			} else {
+				devname = SvPV_nolen(_devname);
+			}
+		}
+
+		if (devname) {
+			dev = blkid_get_dev(real_cache, devname, flags);
+			_dev = sv_newmortal();
+			sv_setref_pv(_dev, "Device::Blkid::Device", (void *)dev);
+			SvREADONLY_on(SvRV(_dev));
+			XPUSHs(_dev);
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+
+
 ### /* getsize.c */
 ### extern blkid_loff_t blkid_get_dev_size(int fd);
-### 
+# // TODO XXX
+# // Frankly, this is senseless -- we do not have fd access from perl
+
+IV
+blkid_get_dev_size(fd)
+	IV fd
+	CODE:
+		RETVAL = blkid_get_dev_size(fd);
+	OUTPUT:
+		RETVAL
+
 ### /* verify.c */
 ### extern blkid_dev blkid_verify(blkid_cache cache, blkid_dev dev);
-### 
+# // TODO Untested
+
+SV *
+blkid_verify(_cache, _dev)
+	SV *_cache
+	SV *_dev
+	PREINIT:
+		blkid_cache cache = sv2cache(_cache, "blkid_verify");
+		blkid_dev dev = sv2dev(_dev, "blkid_verify");
+		blkid_dev ret;
+		SV *_ret;
+	PPCODE:
+		if (cache && dev) {
+			ret = blkid_verify(cache, dev);
+
+			_ret = sv_newmortal();
+			sv_setref_pv(_ret, "Device::Blkid::Device", (void *)ret);
+			SvREADONLY_on(SvRV(_ret));
+			XPUSHs(_ret);
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+		
+
 ### /* read.c */
 ### 
 ### /* resolve.c */
 ### extern char *blkid_get_tag_value(blkid_cache cache, const char *tagname,
 ### 				       const char *devname);
+
+SV *
+blkid_get_tag_value(_cache, tagname, devname)
+	SV *_cache
+	char *tagname
+	char *devname
+	PREINIT:
+		blkid_cache cache = sv2cache(_cache, "blkid_get_tag_value");
+		char *ret;
+	PPCODE:
+		ret = blkid_get_tag_value(cache, tagname, devname);
+		if (ret) {
+			XPUSHs(sv_2mortal(newSVpv(ret, 0)));
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+		
+
 ### extern char *blkid_get_devname(blkid_cache cache, const char *token,
 ### 			       const char *value);
 ### 

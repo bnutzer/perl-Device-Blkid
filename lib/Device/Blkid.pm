@@ -1,4 +1,4 @@
-# $Id: Blkid.pm,v 1.3 2009/09/01 21:30:12 bastian Exp $
+# $Id: Blkid.pm,v 1.4 2009/09/03 14:55:05 bastian Exp $
 # Copyright (c) 2007 Collax GmbH
 package Device::Blkid;
 
@@ -37,7 +37,12 @@ our %EXPORT_TAGS = (
 	funcs	=> [qw(
 			blkid_put_cache
 			blkid_get_cache
+			blkid_gc_cache
 			blkid_devno_to_devname
+			blkid_dev_devname
+			blkid_probe_all
+			blkid_get_dev
+			blkid_get_tag_value
 		)],
 );
 Exporter::export_ok_tags('consts');
@@ -88,6 +93,14 @@ use constant BLKID_FLTR_ONLYIN		=> 2;
 
 
 
+sub blkid_get_cache {
+	my ($arg, @rest) = @_;
+	if (scalar(@rest)) {
+		die('Usage: Device::Blkid::blkid_get_cache(filename)');
+	}
+	if ($arg eq '') { $arg = undef; }
+	return _blkid_get_cache($arg);
+}
 
 =head2 Function blkid_devno_to_devname(major, minor)
 
@@ -131,5 +144,7 @@ sub blkid_devno_to_devname {
 
 	return _blkid_devno_to_devname($a1);
 }
+
+
 
 1;
