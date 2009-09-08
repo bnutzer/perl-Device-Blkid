@@ -1,4 +1,4 @@
-# $Id: Blkid.pm,v 1.6 2009/09/08 08:17:19 bastian Exp $
+# $Id: Blkid.pm,v 1.7 2009/09/08 10:14:57 bastian Exp $
 # Copyright (c) 2007 Collax GmbH
 package Device::Blkid;
 
@@ -178,5 +178,24 @@ sub blkid_devno_to_devname {
 }
 
 
+
+package Device::Blkid::Device;
+
+sub toHash {
+	my ($self) = @_;
+
+	my $ret = {};
+
+	my $iter = Device::Blkid::blkid_tag_iterate_begin($self);
+	return undef if (!$iter);
+
+	while (my $h = Device::Blkid::blkid_tag_next($iter)) {
+		$ret->{$h->{type}} = $h->{value};
+	}
+
+	Device::Blkid::blkid_tag_iterate_end($iter);
+
+	return $ret;
+}
 
 1;
