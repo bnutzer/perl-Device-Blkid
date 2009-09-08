@@ -1,4 +1,4 @@
-# $Id: Blkid.pm,v 1.5 2009/09/08 08:04:36 bastian Exp $
+# $Id: Blkid.pm,v 1.6 2009/09/08 08:17:19 bastian Exp $
 # Copyright (c) 2007 Collax GmbH
 package Device::Blkid;
 
@@ -89,7 +89,7 @@ our %EXPORT_TAGS = (
 Exporter::export_ok_tags('consts');
 Exporter::export_ok_tags('funcs');
 
-our $VERSION = "1.0";
+our $VERSION = "0.6";
 
 =head1 NAME
 
