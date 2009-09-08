@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.4 2009/09/03 14:55:05 bastian Exp $
+ * $Id: Blkid.xs,v 1.5 2009/09/08 08:04:36 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -90,6 +90,53 @@ blkid_probe sv2probe(SV *sv, char *func) {
 }
 
 
+blkid_dev_iterate sv2dev_iterate(SV *sv, char *func) {
+	blkid_dev_iterate dev_iterate = NULL;
+	char err[256] = "dev_iterate error";
+	if (SvROK(sv)) {
+		if (sv_derived_from(sv, "Device::Blkid::DevIterate")) {
+			sv = SvRV(sv);
+			if (SvIOK(sv)) {
+				dev_iterate = INT2PTR(blkid_dev_iterate, SvIV(sv));
+			} else {
+				snprintf(err, sizeof(err)-1, "%s: Invalid argument (internal error)", func);
+			}
+		} else {
+			snprintf(err, sizeof(err)-1, "%s: Invalid argument (not a Device::Blkid::DevIterate object)", func);
+		}
+	} else {
+		snprintf(err, sizeof(err)-1, "%s: Invalid argument (not an object)", func);
+	}
+	if (!dev_iterate)
+		warn(err);
+
+	return dev_iterate; /* In case of error above... */
+}
+
+blkid_tag_iterate sv2tag_iterate(SV *sv, char *func) {
+	blkid_tag_iterate tag_iterate = NULL;
+	char err[256] = "tag_iterate error";
+	if (SvROK(sv)) {
+		if (sv_derived_from(sv, "Device::Blkid::TagIterate")) {
+			sv = SvRV(sv);
+			if (SvIOK(sv)) {
+				tag_iterate = INT2PTR(blkid_tag_iterate, SvIV(sv));
+			} else {
+				snprintf(err, sizeof(err)-1, "%s: Invalid argument (internal error)", func);
+			}
+		} else {
+			snprintf(err, sizeof(err)-1, "%s: Invalid argument (not a Device::Blkid::TagIterate object)", func);
+		}
+	} else {
+		snprintf(err, sizeof(err)-1, "%s: Invalid argument (not an object)", func);
+	}
+	if (!tag_iterate)
+		warn(err);
+
+	return tag_iterate; /* In case of error above... */
+}
+
+
 MODULE = Device::Blkid PACKAGE = Device::Blkid
 
 ### typedef struct blkid_struct_dev *blkid_dev;
@@ -109,13 +156,13 @@ MODULE = Device::Blkid PACKAGE = Device::Blkid
 # //  TODO: Segfaults XXX TODO XXX
 # // Subsequent calls segfault (not the call to put_cache itself)
 SV *
-blkid_put_cache(cache)
-	SV *cache
+blkid_put_cache(_cache)
+	SV *_cache
 	PREINIT:
-		blkid_cache real_cache = sv2cache(cache, "blkid_put_cache");
+		blkid_cache cache = sv2cache(_cache, "blkid_put_cache");
 	PPCODE:
-		if (real_cache) {
-			blkid_put_cache(real_cache);
+		if (cache) {
+			blkid_put_cache(cache);
 			XPUSHs(sv_2mortal(newSViv(1)));
 		} else {
 			XPUSHs(&PL_sv_undef);
@@ -125,39 +172,47 @@ blkid_put_cache(cache)
 ### extern int blkid_get_cache(blkid_cache *cache, const char *filename);
 
 SV *
-_blkid_get_cache(sv_filename)
-	SV *sv_filename
+blkid_get_cache(_filename)
+	SV *_filename
 	PREINIT:
-		blkid_cache real_cache;
-		SV *cache;
+		blkid_cache cache;
+		SV *_cache;
 		int ret;
-		char *filename;
+		char *filename = NULL;
 	PPCODE:
 
-		if (SvOK(sv_filename)) { filename = SvPV_nolen(sv_filename); } else { filename = NULL; }
+		if (SvOK(_filename)) {
+			if (SvPOK(_filename)) {
+				filename = SvPV_nolen(_filename);
+				if (strcmp(filename, "") == 0) {	// Empty string
+					filename = NULL;
+				}
+			}
 
-		if ((ret = blkid_get_cache(&real_cache, filename)) != 0) {
+		}
+
+		if ((ret = blkid_get_cache(&cache, filename)) != 0) {
 			warn("error creating cache (%d)\n", ret);
 			XPUSHs(&PL_sv_undef);
 		} else {
-			cache = sv_newmortal();
-			sv_setref_pv(cache, "Device::Blkid::Cache", (void *)real_cache);
-			SvREADONLY_on(SvRV(cache));
-			XPUSHs(cache);
+			_cache = sv_newmortal();
+			sv_setref_pv(_cache, "Device::Blkid::Cache", (void *)cache);
+			SvREADONLY_on(SvRV(_cache));
+			XPUSHs(_cache);
 		}
 
 
 
-### extern void blkid_gc_cache(blkid_cache cache);
+### extern void blkid_gc_cache(blkid_cache _cache);
 
 SV *
-blkid_gc_cache(cache)
-	SV *cache
+blkid_gc_cache(_cache)
+	SV *_cache
 	PREINIT:
-		blkid_cache real_cache = sv2cache(cache, "blkid_gc_cache");
+		blkid_cache cache = sv2cache(_cache, "blkid_gc_cache");
 	PPCODE:
-		if (real_cache) {
-			blkid_gc_cache(real_cache);
+		if (cache) {
+			blkid_gc_cache(cache);
 			XPUSHs(sv_2mortal(newSViv(1)));
 		} else {
 			XPUSHs(&PL_sv_undef);
@@ -179,14 +234,92 @@ blkid_dev_devname(dev)
 		}
 
 
-### // TODO XXX TODO XXX
 ### extern blkid_dev_iterate blkid_dev_iterate_begin(blkid_cache cache);
+
+SV *
+blkid_dev_iterate_begin(_cache)
+	SV *_cache
+	PREINIT:
+		blkid_cache cache = sv2cache(_cache, "blkid_dev_iterate_begin");
+		blkid_dev_iterate dev_iter = NULL;
+		SV *_dev_iter;
+	PPCODE:
+		if (cache) {
+			dev_iter = blkid_dev_iterate_begin(cache);
+		}
+
+		if (dev_iter) {
+			_dev_iter = sv_newmortal();
+			sv_setref_pv(_dev_iter, "Device::Blkid::DevIterate", (void *)dev_iter);
+			SvREADONLY_on(SvRV(_dev_iter));
+			XPUSHs(_dev_iter);
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+
+
 ### extern int blkid_dev_set_search(blkid_dev_iterate iter,
 ### 				char *search_type, char *search_value);
-### extern int blkid_dev_next(blkid_dev_iterate iterate, blkid_dev *dev);
-### extern void blkid_dev_iterate_end(blkid_dev_iterate iterate);
-### 
 
+int
+blkid_dev_set_search(_iter, search_type, search_value)
+	SV *_iter
+	char *search_type
+	char *search_value
+	INIT:
+		blkid_dev_iterate iter = sv2dev_iterate(_iter, "blkid_dev_set_search");
+		int ret;
+	CODE:
+		if (!(iter && search_type && search_value)) {
+			XSRETURN_UNDEF;
+		}
+		RETVAL = blkid_dev_set_search(iter, search_type, search_value);
+	OUTPUT:
+		RETVAL
+
+
+
+### extern int blkid_dev_next(blkid_dev_iterate iterate, blkid_dev *dev);
+
+SV *
+blkid_dev_next(_iterate)
+	SV *_iterate
+	INIT:
+		blkid_dev_iterate iterate = sv2dev_iterate(_iterate, "blkid_dev_next");
+		blkid_dev dev;
+		SV *_dev;
+		int ret;
+	PPCODE:
+		if (!iterate) {
+			XSRETURN_UNDEF;
+		}
+
+		ret = blkid_dev_next(iterate, &dev);
+		if (ret != 0) {
+			XSRETURN_UNDEF;
+		}
+
+		# // XXX TODO XXX NOT YET TESTED/FINISHED?!
+		_dev = sv_newmortal();
+		sv_setref_pv(_dev, "Device::Blkid::Device", (void *)dev);
+		SvREADONLY_on(SvRV(_dev));
+		XPUSHs(_dev);
+
+
+
+
+### extern void blkid_dev_iterate_end(blkid_dev_iterate iterate);
+
+void
+blkid_dev_iterate_end(_iterate)
+	SV *_iterate
+	INIT:
+		blkid_dev_iterate iterate = sv2dev_iterate(_iterate, "blkid_dev_iterate_end");
+	CODE:
+		if (iterate) {
+			blkid_dev_iterate_end(iterate);
+		}
 
 #
 # blkid_devno_to_devname(devno)
@@ -215,14 +348,14 @@ _blkid_devno_to_devname(devno)
 ### extern int blkid_probe_all(blkid_cache cache);
 
 SV *
-blkid_probe_all(cache)
-	SV *cache
+blkid_probe_all(_cache)
+	SV *_cache
 	PREINIT:
-		blkid_cache real_cache = sv2cache(cache, "blkid_probe_all");
+		blkid_cache cache = sv2cache(_cache, "blkid_probe_all");
 		int ret;
 	PPCODE:
-		if (real_cache) {
-			ret = blkid_probe_all(real_cache);
+		if (cache) {
+			ret = blkid_probe_all(cache);
 			XPUSHs(sv_2mortal(newSViv(ret)));
 		} else {
 			XPUSHs(&PL_sv_undef);
@@ -231,14 +364,14 @@ blkid_probe_all(cache)
 ### extern int blkid_probe_all_new(blkid_cache cache);
 
 SV *
-blkid_probe_all_new(cache)
-	SV *cache
+blkid_probe_all_new(_cache)
+	SV *_cache
 	PREINIT:
-		blkid_cache real_cache = sv2cache(cache, "blkid_probe_all_new");
+		blkid_cache cache = sv2cache(_cache, "blkid_probe_all_new");
 		int ret;
 	PPCODE:
-		if (real_cache) {
-			ret = blkid_probe_all_new(real_cache);
+		if (cache) {
+			ret = blkid_probe_all_new(cache);
 			XPUSHs(sv_2mortal(newSViv(ret)));
 		} else {
 			XPUSHs(&PL_sv_undef);
@@ -328,83 +461,633 @@ blkid_verify(_cache, _dev)
 ### extern char *blkid_get_tag_value(blkid_cache cache, const char *tagname,
 ### 				       const char *devname);
 
-SV *
-blkid_get_tag_value(_cache, tagname, devname)
+char *
+blkid_get_tag_value(_cache, _tagname, _devname)
 	SV *_cache
-	char *tagname
-	char *devname
+	SV *_tagname
+	SV *_devname
 	PREINIT:
 		blkid_cache cache = sv2cache(_cache, "blkid_get_tag_value");
+		char *tagname = SvOK(_tagname) ? SvPV_nolen(_tagname) : NULL;
+		char *devname = SvOK(_devname) ? SvPV_nolen(_devname) : NULL;
 		char *ret;
-	PPCODE:
-		ret = blkid_get_tag_value(cache, tagname, devname);
-		if (ret) {
-			XPUSHs(sv_2mortal(newSVpv(ret, 0)));
-		} else {
-			XPUSHs(&PL_sv_undef);
+	CODE:
+		RETVAL = NULL;
+		if (tagname && devname) {
+			RETVAL = blkid_get_tag_value(cache, tagname, devname);
 		}
+	OUTPUT:
+		RETVAL
 
 		
 
 ### extern char *blkid_get_devname(blkid_cache cache, const char *token,
 ### 			       const char *value);
+
+char *
+blkid_get_devname(_cache, _token, _value)
+	SV *_cache
+	SV *_token
+	SV *_value
+	PREINIT:
+		blkid_cache cache = sv2cache(_cache, "blkid_get_tag_value");
+		char *token = (SvOK(_token) && SvPOK(_token)) ? SvPV_nolen(_token) : NULL;
+		char *value = (SvOK(_value) && SvPOK(_value)) ? SvPV_nolen(_value) : NULL;
+		char *ret = NULL;
+		SV *_ret = NULL;
+	CODE:
+		RETVAL = NULL;
+		if (cache && token && value) {
+			RETVAL = blkid_get_devname(cache, token, value);
+		}
+	OUTPUT:
+		RETVAL
+		
+
+
 ### 
 ### /* tag.c */
 ### extern blkid_tag_iterate blkid_tag_iterate_begin(blkid_dev dev);
+
+SV *
+blkid_tag_iterate_begin(_dev)
+	SV *_dev
+	INIT:
+		blkid_dev dev = sv2dev(_dev, "blkid_tag_iterate_begin");
+		blkid_tag_iterate tag_iterate = NULL;
+		SV *_tag_iterate;
+	PPCODE:
+		if (dev) {
+			tag_iterate = blkid_tag_iterate_begin(dev);
+		}
+
+		if (tag_iterate) {
+			_tag_iterate = sv_newmortal();
+			sv_setref_pv(_tag_iterate, "Device::Blkid::TagIterate", (void *)tag_iterate);
+			SvREADONLY_on(SvRV(_tag_iterate));
+			XPUSHs(_tag_iterate);
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+
 ### extern int blkid_tag_next(blkid_tag_iterate iterate,
 ### 			      const char **type, const char **value);
+
+SV *
+blkid_tag_next(_iterate)
+	SV *_iterate
+	INIT:
+		blkid_tag_iterate iterate = sv2tag_iterate(_iterate, "blkid_tag_next");
+		const char *type;
+		const char *value;
+
+		HV *rh;
+	PPCODE:
+		if (iterate) {
+			blkid_tag_next(iterate, &type, &value);
+			if (type && value) {
+
+				rh = (HV *)sv_2mortal((SV *)newHV());
+
+				hv_store(rh, "type", 4, newSVpv(type, 0), 0);
+				hv_store(rh, "value", 5, newSVpv(value, 0), 0);
+
+				XPUSHs(sv_2mortal(newRV((SV *) rh)));
+			} else {
+				XPUSHs(&PL_sv_undef);
+			}
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+
 ### extern void blkid_tag_iterate_end(blkid_tag_iterate iterate);
+
+void
+blkid_tag_iterate_end(_iterate)
+	SV *_iterate
+	INIT:
+		blkid_tag_iterate iterate = sv2tag_iterate(_iterate, "blkid_tag_iterate_end");
+	CODE:
+		if (iterate) {
+			blkid_tag_iterate_end(iterate);
+		}
+
+
 ### extern int blkid_dev_has_tag(blkid_dev dev, const char *type,
 ### 			     const char *value);
+
+IV
+blkid_dev_has_tag(_dev, type, value)
+	SV *_dev
+	const char *type
+	const char *value
+	INIT:
+		blkid_dev dev = sv2dev(_dev, "blkid_dev_has_tag");
+	CODE:
+		if (dev && type && value) {
+			RETVAL = blkid_dev_has_tag(dev, type, value);
+		} else {
+			RETVAL = 0;
+		}
+	OUTPUT:
+		RETVAL
+	
+
 ### extern blkid_dev blkid_find_dev_with_tag(blkid_cache cache,
 ### 					 const char *type,
 ### 					 const char *value);
+
+SV *
+blkid_find_dev_with_tag(_cache, type, value)
+	SV *_cache
+	const char *type
+	const char *value
+	INIT:
+		blkid_cache cache = sv2cache(_cache, "blkid_find_dev_with_tag");
+		blkid_dev dev = NULL;
+		SV *_dev = NULL;
+	PPCODE:
+		if (cache) {
+			dev = blkid_find_dev_with_tag(cache, type, value);
+		}
+
+		if (dev) {
+			_dev = sv_newmortal();
+			sv_setref_pv(_dev, "Device::Blkid::Device", (void *)dev);
+			SvREADONLY_on(SvRV(_dev));
+			XPUSHs(_dev);
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+
 ### extern int blkid_parse_tag_string(const char *token, char **ret_type,
 ### 				  char **ret_val);
+
+SV *
+blkid_parse_tag_string(token)
+	const char *token
+	INIT:
+		char *ret_type;
+		char *ret_val;
+
+		HV *rh;
+
+		int ret;
+	PPCODE:
+		if (token) {
+			ret = blkid_parse_tag_string(token, &ret_type, &ret_val);
+			if (ret == 0 && ret_type && ret_val) {
+
+				rh = (HV *)sv_2mortal((SV *)newHV());
+
+				hv_store(rh, "type", 4, newSVpv(ret_type, 0), 0);
+				hv_store(rh, "value", 5, newSVpv(ret_val, 0), 0);
+
+				XPUSHs(sv_2mortal(newRV((SV *) rh)));
+			} else {
+				XPUSHs(&PL_sv_undef);
+			}
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
 ### 
 ### /* version.c */
 ### extern int blkid_parse_version_string(const char *ver_string);
+
+int
+blkid_parse_version_string(ver_string)
+	const char *ver_string
+
 ### extern int blkid_get_library_version(const char **ver_string,
 ### 				     const char **date_string);
 ### 
+
+SV *
+blkid_get_library_version()
+	INIT:
+		const char *ver_string;
+		const char *date_string;
+		HV *rh;
+		int ret;
+	PPCODE:
+		ret = blkid_get_library_version(&ver_string, &date_string);
+
+		rh = (HV *)sv_2mortal((SV *)newHV());
+
+		hv_store(rh, "int", 3, newSViv(ret), 0);
+
+		if (ver_string && date_string) {
+
+
+			hv_store(rh, "ver", 3, newSVpv(ver_string, 0), 0);
+			hv_store(rh, "date", 4, newSVpv(date_string, 0), 0);
+
+		}
+
+		XPUSHs(sv_2mortal(newRV((SV *) rh)));
+
+
 ### /* encode.c */
 ### extern int blkid_encode_string(const char *str, char *str_enc, size_t len);
+# // TODO: derive string length from input. What does this function do anyways?
+
+SV *
+blkid_encode_string(str)
+	const char *str
+	INIT:
+		char str_enc[1024];
+
+		int ret;
+	PPCODE:
+		ret = blkid_encode_string(str, str_enc, 1023);
+		if (ret != 0) {
+			XPUSHs(&PL_sv_undef);
+		} else {
+			XPUSHs(sv_2mortal(newSVpv(str_enc, 0)));
+		}
+
+
 ### extern int blkid_safe_string(const char *str, char *str_safe, size_t len);
-### 
+# // TODO: derive string length from input. What does this function do anyways?
+
+SV *
+blkid_safe_string(str)
+	const char *str
+	INIT:
+		char str_safe[1024];
+
+		int ret;
+	PPCODE:
+		ret = blkid_safe_string(str, str_safe, 1023);
+		if (ret != 0) {
+			XPUSHs(&PL_sv_undef);
+		} else {
+			XPUSHs(sv_2mortal(newSVpv(str_safe, 0)));
+		}
+
+
+
 ### /* evaluate.c */
 ### extern int blkid_send_uevent(const char *devname, const char *action);
 
-
+int
+blkid_send_uevent(devname, action)
+	const char *devname
+	const char *action
 
 ### extern char *blkid_evaluate_tag(const char *token, const char *value,
 ### 				blkid_cache *cache);
-### 
+
+
+SV *
+blkid_evaluate_tag(token, value)
+	const char *token
+	const char *value
+	INIT:
+		char *ret;
+	PPCODE:
+		if (token && value) {
+			ret = blkid_evaluate_tag(token, value, NULL); // Don't use cache. TODO XXX
+			XPUSHs(sv_2mortal(newSVpv(ret, 0)));
+			free(ret);
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+
+
 ### /* probe.c */
 ### extern int blkid_known_fstype(const char *fstype);
+
+int
+blkid_known_fstype(fstype)
+	const char *fstype
+
 ### extern blkid_probe blkid_new_probe(void);
+
+SV *
+blkid_new_probe()
+	INIT:
+		blkid_probe probe = NULL;
+		SV *_probe;
+	PPCODE:
+		probe = blkid_new_probe();
+		if (probe) {
+			_probe = sv_newmortal();
+			sv_setref_pv(_probe, "Device::Blkid::Probe", (void *)probe);
+			SvREADONLY_on(SvRV(_probe));
+			XPUSHs(_probe);
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
 ### extern void blkid_free_probe(blkid_probe pr);
+
+void
+blkid_free_probe(_pr)
+	SV *_pr
+	INIT:
+		blkid_probe pr = sv2probe(_pr, "blkid_free_probe");
+	CODE:
+		if (pr) {
+			blkid_free_probe(pr);
+		}
+
 ### extern void blkid_reset_probe(blkid_probe pr);
-### 
+
+void
+blkid_reset_probe(_pr)
+	SV *_pr
+	INIT:
+		blkid_probe pr = sv2probe(_pr, "blkid_reset_probe");
+	CODE:
+		if (pr) {
+			blkid_reset_probe(pr);
+		}
+
+
 ### extern int blkid_probe_set_device(blkid_probe pr, int fd,
 ### 	                blkid_loff_t off, blkid_loff_t size);
-### 
+# // TODO: Completely useless? Again, using file descriptors
+
+int
+blkid_probe_set_device(_pr, fd, off, size)
+	SV *_pr
+	int fd
+	int64_t off
+	int64_t size
+	INIT:
+		blkid_probe pr = sv2probe(_pr, "blkid_probe_set_device");
+	CODE:
+		if (pr) {
+			RETVAL = blkid_probe_set_device(pr, fd, off, size);
+		} else {
+			XSRETURN_UNDEF;
+		}
+	OUTPUT:
+		RETVAL
+
+		
+	
+
 ### extern int blkid_probe_set_request(blkid_probe pr, int flags);
-### 
+
+int
+blkid_probe_set_request(_pr, flags)
+	SV *_pr
+	int flags
+	INIT:
+		blkid_probe pr = sv2probe(_pr, "blkid_probe_set_request");
+	CODE:
+		if (!pr) {
+			XSRETURN_UNDEF;
+		}
+
+		RETVAL = blkid_probe_set_request(pr, flags);
+
+	OUTPUT:
+		RETVAL
+
+
 ### extern int blkid_probe_filter_usage(blkid_probe pr, int flag, int usage);
-### 
+
+
+int
+blkid_probe_filter_usage(_pr, flag, usage)
+	SV *_pr
+	int flag
+	int usage
+	INIT:
+		blkid_probe pr = sv2probe(_pr, "blkid_probe_filter_usage");
+	CODE:
+		if (!pr) {
+			XSRETURN_UNDEF;
+		}
+
+		RETVAL = blkid_probe_filter_usage(pr, flag, usage);
+
+	OUTPUT:
+		RETVAL
+	
+
 ### extern int blkid_probe_filter_types(blkid_probe pr,
 ### 			int flag, char *names[]);
-### 
-### 
+
+# // TODO XXX TODO XXX Segfaults :(
+
+int
+blkid_probe_filter_types(_pr, flag, _names)
+	SV *_pr
+	int flag
+	AV *_names
+	PREINIT:
+		char **names;
+		I32 num; 
+		blkid_probe pr;
+		int i;
+		int ok;
+		SV **_s;
+		char *s;
+	INIT:
+		pr = sv2probe(_pr, "blkid_probe_filter_types");
+	CODE:
+		if (!pr) {
+			XSRETURN_UNDEF;
+		}
+		num = av_len(_names) + 1;
+		if (num < 1) {
+			XSRETURN_UNDEF;
+		}
+		names = malloc(sizeof(char *) * num);
+		for (i = 0; i < num; i++) {
+			ok = 0;
+			_s = av_fetch(_names, i, 0);
+			if (_s) {
+				if (SvOK(*_s)) {
+					if (SvPOK(*_s)) {
+						ok = 1;
+						s = SvPV_nolen(*_s);
+					}
+				}
+			}
+
+			if (ok) {
+				names[i] = s;
+			} else {
+				names[i] = ""; //  XXX or rather NULL?
+			}
+		}
+
+		for (i = 0; i < num; i++) {
+			printf("name %d is %s\n", i, names[i]);
+		}
+
+		RETVAL = blkid_probe_filter_types(pr, flag, names);
+
+		free(names);
+	OUTPUT:
+		RETVAL
+
+
 ### extern int blkid_probe_invert_filter(blkid_probe pr);
+
+int
+blkid_probe_invert_filter(_pr)
+	SV *_pr
+	INIT:
+		blkid_probe pr = sv2probe(_pr, "blkid_probe_invert_filter");
+	CODE:
+		if (!pr) {
+			XSRETURN_UNDEF;
+		}
+		RETVAL = blkid_probe_invert_filter(pr);
+	OUTPUT:
+		RETVAL
+
 ### extern int blkid_probe_reset_filter(blkid_probe pr);
-### 
+
+int
+blkid_probe_reset_filter(_pr)
+	SV *_pr
+	INIT:
+		blkid_probe pr = sv2probe(_pr, "blkid_probe_reset_filter");
+	CODE:
+		if (!pr) {
+			XSRETURN_UNDEF;
+		}
+		RETVAL = blkid_probe_reset_filter(pr);
+	OUTPUT:
+		RETVAL
+
+
 ### extern int blkid_do_probe(blkid_probe pr);
+
+int
+blkid_do_probe(_pr)
+	SV *_pr
+	INIT:
+		blkid_probe pr = sv2probe(_pr, "blkid_do_probe");
+	CODE:
+		if (!pr) {
+			XSRETURN_UNDEF;
+		}
+		RETVAL = blkid_do_probe(pr);
+	OUTPUT:
+		RETVAL
+
+
+
+
 ### extern int blkid_do_safeprobe(blkid_probe pr);
-### 
+
+int
+blkid_do_safeprobe(_pr)
+	SV *_pr
+	INIT:
+		blkid_probe pr = sv2probe(_pr, "blkid_do_safeprobe");
+	CODE:
+		if (!pr) {
+			XSRETURN_UNDEF;
+		}
+		RETVAL = blkid_do_safeprobe(pr);
+	OUTPUT:
+		RETVAL
+
+
 ### extern int blkid_probe_numof_values(blkid_probe pr);
+
+int
+blkid_probe_numof_values(_pr)
+	SV *_pr
+	INIT:
+		blkid_probe pr = sv2probe(_pr, "blkid_probe_numof_values");
+	CODE:
+		if (!pr) {
+			XSRETURN_UNDEF;
+		}
+		RETVAL = blkid_probe_numof_values(pr);
+	OUTPUT:
+		RETVAL
+
+
 ### extern int blkid_probe_get_value(blkid_probe pr, int num, const char **name,
 ###                         const char **data, size_t *len);
+
+SV *
+blkid_probe_get_value(_pr, num)
+	SV *_pr
+	int num
+	INIT:
+		HV *rh = NULL;
+		const char *name;
+		const char *data;
+		size_t len;
+		int ret;
+
+		blkid_probe pr = sv2probe(_pr, "blkid_probe_get_value");
+	PPCODE:
+		if (pr) {
+			ret = blkid_probe_get_value(pr, num, &name, &data, &len);
+
+			if (ret == 0) {
+				rh = (HV *)sv_2mortal((SV *)newHV());
+
+				hv_store(rh, "name", 4, newSVpv(name, 0), 0);
+				hv_store(rh, "data", 4, newSVpv(data, 0), 0);
+
+				XPUSHs(sv_2mortal(newRV((SV *) rh)));
+			} else {
+				XPUSHs(&PL_sv_undef);
+			}
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+
+
 ### extern int blkid_probe_lookup_value(blkid_probe pr, const char *name,
 ###                         const char **data, size_t *len);
+
+SV *
+blkid_probe_lookup_value(_pr, name)
+	SV *_pr
+	const char *name
+	INIT:
+		const char *data;
+		size_t len;
+		int ret;
+		SV *_data;
+
+		blkid_probe pr = sv2probe(_pr, "blkid_probe_lookup_value");
+	PPCODE:
+		if (pr) {
+			if (blkid_probe_lookup_value(pr, name, &data, &len) == 0) {
+				XPUSHs(sv_2mortal(newSVpv(data, len)));
+			} else {
+				XPUSHs(&PL_sv_undef);
+			}
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
+
+
 ### extern int blkid_probe_has_value(blkid_probe pr, const char *name);
+
+int
+blkid_probe_has_value(_pr, name)
+	SV *_pr
+	const char *name
+	INIT:
+		blkid_probe pr = sv2probe(_pr, "blkid_probe_has_value");
+	CODE:
+		if (pr) {
+			RETVAL = blkid_probe_has_value(pr, name);
+		} else {
+			XSRETURN_UNDEF;
+		}
+	OUTPUT:
+		RETVAL

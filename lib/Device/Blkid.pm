@@ -1,4 +1,4 @@
-# $Id: Blkid.pm,v 1.4 2009/09/03 14:55:05 bastian Exp $
+# $Id: Blkid.pm,v 1.5 2009/09/08 08:04:36 bastian Exp $
 # Copyright (c) 2007 Collax GmbH
 package Device::Blkid;
 
@@ -41,8 +41,49 @@ our %EXPORT_TAGS = (
 			blkid_devno_to_devname
 			blkid_dev_devname
 			blkid_probe_all
+			blkid_probe_all_new
 			blkid_get_dev
+			blkid_get_dev_size
+			blkid_verify
 			blkid_get_tag_value
+			blkid_get_devname
+			blkid_dev_iterate_begin
+			blkid_dev_set_search
+			blkid_dev_next
+			blkid_dev_iterate_end
+
+			blkid_tag_iterate_begin
+			blkid_tag_next
+			blkid_tag_iterate_end
+
+			blkid_dev_has_tag
+			blkid_find_dev_with_tag
+			blkid_parse_tag_string
+			blkid_parse_version_string
+			blkid_get_library_version
+			blkid_encode_string
+			blkid_safe_string
+			blkid_send_uevent
+			blkid_evaluate_tag
+			blkid_known_fstype
+
+			blkid_new_probe
+			blkid_free_probe
+			blkid_reset_probe
+
+			blkid_probe_set_device
+			blkid_probe_set_request
+			blkid_probe_filter_usage
+			blkid_probe_filter_types
+
+			blkid_probe_invert_filter
+			blkid_probe_reset_filter
+			blkid_do_probe
+			blkid_do_safeprobe
+			blkid_probe_numof_values
+			blkid_probe_get_value
+			blkid_probe_lookup_value
+			blkid_probe_has_value
 		)],
 );
 Exporter::export_ok_tags('consts');
@@ -92,15 +133,6 @@ use constant BLKID_FLTR_NOTIN		=> 1;
 use constant BLKID_FLTR_ONLYIN		=> 2;
 
 
-
-sub blkid_get_cache {
-	my ($arg, @rest) = @_;
-	if (scalar(@rest)) {
-		die('Usage: Device::Blkid::blkid_get_cache(filename)');
-	}
-	if ($arg eq '') { $arg = undef; }
-	return _blkid_get_cache($arg);
-}
 
 =head2 Function blkid_devno_to_devname(major, minor)
 
