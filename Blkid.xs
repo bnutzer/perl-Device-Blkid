@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.5 2009/09/08 08:04:36 bastian Exp $
+ * $Id: Blkid.xs,v 1.6 2009/09/08 12:47:13 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -300,7 +300,6 @@ blkid_dev_next(_iterate)
 			XSRETURN_UNDEF;
 		}
 
-		# // XXX TODO XXX NOT YET TESTED/FINISHED?!
 		_dev = sv_newmortal();
 		sv_setref_pv(_dev, "Device::Blkid::Device", (void *)dev);
 		SvREADONLY_on(SvRV(_dev));
@@ -391,7 +390,7 @@ blkid_get_dev(cache, _devname, flags)
 	PREINIT:
 		blkid_cache real_cache = sv2cache(cache, "blkid_probe_all_new");
 		char *devname = NULL;
-		blkid_dev dev;
+		blkid_dev dev = NULL;
 		SV *_dev;
 	PPCODE:
 		if (!SvOK(_devname)) {
@@ -406,6 +405,9 @@ blkid_get_dev(cache, _devname, flags)
 
 		if (devname) {
 			dev = blkid_get_dev(real_cache, devname, flags);
+		}
+
+		if (dev) {
 			_dev = sv_newmortal();
 			sv_setref_pv(_dev, "Device::Blkid::Device", (void *)dev);
 			SvREADONLY_on(SvRV(_dev));
