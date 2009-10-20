@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-use Test::More tests => 35;
+use Test::More tests => 41;
 use Data::Dumper;
 
 use FindBin qw($Bin);
@@ -28,15 +28,17 @@ sub hashrefToString {
 #
 my $checkdev = "/dev/sda1";
 
-my $cachefile = '/dev/blkid.tab';
-$cachefile = '/etc/blkid.tab' if (! -e $cachefile);
+my $cachefile = '/etc/blkid.tab';
+$cachefile = '/dev/blkid.tab' if (! -e $cachefile);
 $cachefile = undef if (! -e $cachefile);
+
+diag(sprintf('Using %s as cache', ($cachefile ? $cachefile : '(undef)')));
 
 #
 # Constants defined?
 #
 
-is(BLKID_DEV_FIND, 0, 'BLKID_DEV_FIND set correctly.');
+is(BLKID_DEV_FIND, 0, 'Constant BLKID_DEV_FIND set correctly');
 
 #
 # blkid_devno_to_devname
@@ -48,16 +50,19 @@ is (blkid_devno_to_devname(1), undef, 'Device 1 is undef');
 #
 # Cache object
 #
-my $cache = blkid_get_cache($cachefile);
+my $cache;
 
-ok($cache->isa('Device::Blkid::Cache'), sprintf('cache from %s is a valid cache', ($cachefile ? $cachefile : '(undef)')));
+$cache = blkid_get_cache();
+isa_ok($cache, 'Device::Blkid::Cache', 'cache from empty file name (empty arg list) is a valid cache');
+
+$cache = blkid_get_cache($cachefile);
+
+isa_ok($cache, 'Device::Blkid::Cache', sprintf('cache from %s is a valid cache', ($cachefile ? $cachefile : '(undef)')));
 
 ok(!defined(blkid_put_cache('Just a text')), "Bogus cache was correctly rejected");
 ok(!defined(blkid_gc_cache('Just a text')), "Bogus cache was correctly rejected by blkid_gc_cache");
 
-ok(blkid_gc_cache($cache), "Successfully ran garbage collection on the cache\n");
-
-is(blkid_probe_all($cache), 0, "probe_all returns successfully");
+ok(blkid_gc_cache($cache), "Garbage collection on the cache");
 
 ok(blkid_put_cache($cache), "Successfully put the cache again");
 is($cache, undef, 'Cache is undef after put');
@@ -255,15 +260,20 @@ ok(blkid_probe_all_new($cache), 'blkid_probe_all_new called successfully');
 #
 # blkid_send_uevent
 #
-ok(blkid_send_uevent('/dev/sda1', 'unknownAction'), 'blkid_send_uevent sends action');
-ok(!blkid_send_uevent('nosuchdevice', 'invalidaction'), 'blkid_send_uevent correctly fails sending action to invalid device');
+
+SKIP: {
+	skip 'blkid_send_uevent will not work when called as non-root, skipping', 2 if ($> != 0);
+
+	ok(blkid_send_uevent('/dev/sda1', 'unknownAction'), 'blkid_send_uevent sends action');
+	ok(!blkid_send_uevent('nosuchdevice', 'invalidaction'), 'blkid_send_uevent correctly fails sending action to invalid device');
+}
 
 
 ##############################################
 #
 # blkid_get_dev_size
 #
-my $fn = $Bin . '/imgs/ext3.img';
+my $fn = $Bin . '/imgs/ext2.img';
 my $fd = POSIX::open($fn);
 is(blkid_get_dev_size($fd), 1048576, "Test image $fn is 1M in size as expected");
 POSIX::close($fd);
