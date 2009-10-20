@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.8 2009/10/20 10:01:14 bastian Exp $
+ * $Id: Blkid.xs,v 1.9 2009/10/20 10:01:47 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -387,12 +387,12 @@ blkid_probe_all_new(_cache)
 
 
 SV *
-blkid_get_dev(cache, _devname, flags)
-	SV *cache
+blkid_get_dev(_cache, _devname, flags)
+	SV *_cache
 	SV *_devname
 	IV flags
 	PREINIT:
-		blkid_cache real_cache = sv2cache(cache, "blkid_probe_all_new");
+		blkid_cache cache = sv2cache(_cache, "blkid_probe_all_new");
 		char *devname = NULL;
 		blkid_dev dev = NULL;
 		SV *_dev;
@@ -408,7 +408,7 @@ blkid_get_dev(cache, _devname, flags)
 		}
 
 		if (devname) {
-			dev = blkid_get_dev(real_cache, devname, flags);
+			dev = blkid_get_dev(cache, devname, flags);
 		}
 
 		if (dev) {
