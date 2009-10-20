@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.10 2009/10/20 10:20:58 bastian Exp $
+ * $Id: Blkid.xs,v 1.11 2009/10/20 10:21:36 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -227,13 +227,15 @@ blkid_gc_cache(_cache)
 ### /* dev.c */
 ### extern const char *blkid_dev_devname(blkid_dev dev);
 SV *
-blkid_dev_devname(dev)
-	SV *dev
+blkid_dev_devname(_dev)
+	SV *_dev
 	PREINIT:
-		blkid_dev real_dev = sv2dev(dev, "blkid_dev_devname");
+		blkid_dev dev = sv2dev(_dev, "blkid_dev_devname");
 		const char *ret;
 	PPCODE:
-		if (ret = blkid_dev_devname(real_dev)) {
+		if (!dev) {
+			XPUSHs(&PL_sv_undef);
+		} else if (ret = blkid_dev_devname(dev)) {
 			XPUSHs(sv_2mortal(newSVpv(ret, 0)));
 		} else {
 			XPUSHs(&PL_sv_undef);
