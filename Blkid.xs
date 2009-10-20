@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.13 2009/10/20 17:54:42 bastian Exp $
+ * $Id: Blkid.xs,v 1.14 2009/10/20 20:27:54 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -178,23 +178,25 @@ blkid_put_cache(_cache)
 ### extern int blkid_get_cache(blkid_cache *cache, const char *filename);
 
 SV *
-blkid_get_cache(_filename)
-	SV *_filename
+blkid_get_cache( ... )
 	PREINIT:
 		blkid_cache cache;
 		SV *_cache;
 		int ret;
 		char *filename = NULL;
+		SV *_filename = NULL;;
 	PPCODE:
-
-		if (SvOK(_filename)) {
+		/* items == null -> use default cache file name; use filename = NULL */
+		if (items == 1) {
+			_filename = ST(0);
 			if (SvPOK(_filename)) {
 				filename = SvPV_nolen(_filename);
 				if (strcmp(filename, "") == 0) {	// Empty string
 					filename = NULL;
 				}
 			}
-
+		} else if (items > 1) {
+			Perl_croak(aTHX_ "Usage: Device::Blkid::blkid_get_cache($filename)");
 		}
 
 		if ((ret = blkid_get_cache(&cache, filename)) != 0) {
