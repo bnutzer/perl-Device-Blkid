@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.11 2009/10/20 10:21:36 bastian Exp $
+ * $Id: Blkid.xs,v 1.12 2009/10/20 17:16:57 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -168,7 +168,7 @@ blkid_put_cache(_cache)
 	PPCODE:
 		if (cache) {
 			blkid_put_cache(cache);
-			*_cache = PL_sv_undef;
+			sv_setsv(_cache, &PL_sv_undef);
 			XPUSHs(sv_2mortal(newSViv(1)));
 		} else {
 			XPUSHs(&PL_sv_undef);
@@ -428,16 +428,10 @@ blkid_get_dev(_cache, _devname, flags)
 
 ### /* getsize.c */
 ### extern blkid_loff_t blkid_get_dev_size(int fd);
-# // TODO XXX
-# // Frankly, this is senseless -- we do not have fd access from perl
 
 IV
 blkid_get_dev_size(fd)
 	IV fd
-	CODE:
-		RETVAL = blkid_get_dev_size(fd);
-	OUTPUT:
-		RETVAL
 
 ### /* verify.c */
 ### extern blkid_dev blkid_verify(blkid_cache cache, blkid_dev dev);
@@ -596,6 +590,7 @@ blkid_dev_has_tag(_dev, type, value)
 	INIT:
 		blkid_dev dev = sv2dev(_dev, "blkid_dev_has_tag");
 	CODE:
+		/* blkid_dev_has_tag does NOT accept empty value (and "LABEL=foo" type) */
 		if (dev && type && value) {
 			RETVAL = blkid_dev_has_tag(dev, type, value);
 		} else {
