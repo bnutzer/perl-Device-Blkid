@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.14 2009/10/20 20:27:54 bastian Exp $
+ * $Id: Blkid.xs,v 1.15 2009/10/20 21:06:03 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -338,13 +338,30 @@ blkid_dev_iterate_end(_iterate)
 #
 
 SV *
-_blkid_devno_to_devname(devno)
-	dev_t devno
+blkid_devno_to_devname(major, ...)
+	dev_t major
 	PREINIT:
-		blkid_cache cache = NULL;
 		char *ret;
+		SV *arg2;
+		dev_t devno;
 	PPCODE:
-		blkid_get_cache(&cache, NULL);
+
+		if (items > 2) {
+			Perl_croak(aTHX_ "Usage: Device::Blkid::_blkid_devno_to_devname(major, minor|devno)");
+		}
+
+		devno = major;
+		if (items == 2) {
+			arg2 = ST(1);
+			if (SvOK(arg2) && SvIOK(arg2)) {
+				devno = (major << 8) + SvIV(arg2);
+			} else {
+				Perl_croak(aTHX_ "Usage: Device::Blkid::_blkid_devno_to_devname(major, minor|devno)");
+			}
+		}
+
+		printf("devno is %d\n", devno);
+
 		ret = blkid_devno_to_devname(devno);
 		if (ret) {
 			XPUSHs(sv_2mortal(newSVpv(ret, 0)));

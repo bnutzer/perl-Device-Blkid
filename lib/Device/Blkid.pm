@@ -1,4 +1,4 @@
-# $Id: Blkid.pm,v 1.7 2009/09/08 10:14:57 bastian Exp $
+# $Id: Blkid.pm,v 1.8 2009/10/20 21:06:03 bastian Exp $
 # Copyright (c) 2007 Collax GmbH
 package Device::Blkid;
 
@@ -151,31 +151,6 @@ Return device name for device with given major/minor number combination.
  }
 
 =cut
-
-sub blkid_devno_to_devname {
-	my ($a1, $a2, @r) = @_;
-
-	if (scalar(@r)) {
-		die('Syntax error in blkid_devno_to_devname');
-	}
-
-	if (!defined($a1)) {
-		die('Syntax error in blkid_devno_to_devname');
-	}
-
-	if ($a1 !~ m/^[0-9]*$/) {
-		die('Syntax error in blkid_devno_to_devname');
-	}
-
-	if (defined($a2)) {
-		if ($a2 !~ m/^[0-9]*$/) {
-			die('Syntax error in blkid_devno_to_devname');
-		}
-		$a1 = ($a1 << 8) + $a2;
-	}
-
-	return _blkid_devno_to_devname($a1);
-}
 
 
 
