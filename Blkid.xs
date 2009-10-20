@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.6 2009/09/08 12:47:13 bastian Exp $
+ * $Id: Blkid.xs,v 1.7 2009/10/20 10:00:13 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -32,6 +32,9 @@ blkid_cache sv2cache(SV *sv, char *func) {
 		} else {
 			snprintf(err, sizeof(err)-1, "%s: Invalid argument (not a Device::Blkid::Cache object)", func);
 		}
+	} else if (!SvOK(sv)) {
+		/* "undef" -> return NULL */
+		return NULL;
 	} else {
 		snprintf(err, sizeof(err)-1, "%s: Invalid argument (not an object)", func);
 	}

@@ -1,46 +1,49 @@
 #!/usr/bin/perl -w
 
-use Test::More tests => 11;
+use Test::More tests => 15;
 use Data::Dumper;
 
 BEGIN { use_ok('Device::Blkid', ':funcs', ':consts'); }
 
-sub dump_dev {
-	my ($dev) = @_;
 
-	my $tagiter = blkid_tag_iterate_begin($dev);
-	while (my $t = blkid_tag_next($tagiter)) {
-		printf("type: %s - value: %s\n", $t->{type}, $t->{value});
-	}
-	blkid_tag_iterate_end($tagiter);
-}
-
+#
+# Device names, file names
+#
 my $checkdev = "/dev/sda1";
 
+my $cachefile = '/dev/blkid.tab';
+$cachefile = '/etc/blkid.tab' if (! -e $cachefile);
+$cachefile = undef if (! -e $cachefile);
+
+#
 # Constants defined?
+#
 
 is(BLKID_DEV_FIND, 0, 'BLKID_DEV_FIND set correctly.');
 
+#
 # blkid_devno_to_devname
-is (blkid_devno_to_devname(2049), $checkdev , 'Device 2049 is ' . $checkdev);
-is (blkid_devno_to_devname(8, 1), $checkdev , 'Device 8, 1 is ' . $checkdev);
+#
+is (blkid_devno_to_devname(2049), $checkdev, 'Device 2049 is ' . $checkdev);
+is (blkid_devno_to_devname(8, 1), $checkdev, 'Device 8, 1 is ' . $checkdev);
 is (blkid_devno_to_devname(1), undef, 'Device 1 is undef');
 
-#my $cache = blkid_get_cache('');
-my $cache = blkid_get_cache('/dev/blkid.tab');
+#
+# Cache object
+#
+my $cache = blkid_get_cache($cachefile);
 
-ok($cache->isa('Device::Blkid::Cache'), 'cache from /dev/blkid.tab is a valid cache');
-
-diag(Dumper($cache));
+ok($cache->isa('Device::Blkid::Cache'), sprintf('cache from %s is a valid cache', ($cachefile ? $cachefile : '(undef)')));
 
 ok(!defined(blkid_put_cache('Just a text')), "Bogus cache was correctly rejected");
-#ok(blkid_put_cache($cache), "Successfully set the cache again");
-#
 ok(!defined(blkid_gc_cache('Just a text')), "Bogus cache was correctly rejected by blkid_gc_cache");
 
 ok(blkid_gc_cache($cache), "Successfully 'gc' the cache again\n");
 
 is(blkid_probe_all($cache), 0, "probe_all returns successfully");
+
+ok(blkid_put_cache($cache), "Successfully set the cache again");
+is($cache, undef, 'Cache is undef after put');
 
 my $dev = blkid_get_dev($cache, $checkdev, 0);
 
@@ -77,20 +80,15 @@ if (0) {
 
 ##############################################
 
-if (0) {
+if (1) {
 
 	my $iter = blkid_dev_iterate_begin($cache);
-	my $ret = blkid_dev_set_search($iter, 'TYPE', 'ext3');
+#	my $ret = blkid_dev_set_search($iter, 'TYPE', 'ext3');
 
-	printf("set_search returned %s\n", Dumper($ret));
+#	printf("set_search returned %s\n", Dumper($ret));
 
 	while (my $d = blkid_dev_next($iter)) {
-		print(Dumper($d));
-		my $tagiter = blkid_tag_iterate_begin($d);
-		while (my $t = blkid_tag_next($tagiter)) {
-			print(Dumper($t));
-		}
-		blkid_tag_iterate_end($tagiter);
+		print(Dumper($d->toHash));
 	}
 
 	blkid_dev_iterate_end($iter);
@@ -106,9 +104,9 @@ ok(!blkid_dev_has_tag($dev, 'LABEL', undef), 'blkid_dev_has_tag returns false wi
 
 ##############################################
 
-if (0) {
+if (1) {
 	$dev = blkid_find_dev_with_tag($cache, 'LABEL', '/swap');
-	dump_dev($dev);
+	print(Dumper($dev->toHash()));
 }
 
 ##############################################
@@ -170,7 +168,10 @@ if (0) {
 
 ##############################################
 
-if (1) {
+if (0) {
 	my $probe = blkid_new_probe();
 	print(Dumper(blkid_probe_filter_types($probe, 0, [ "foo", "bar" ] )));
 }
+
+##############################################
+
