@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.12 2009/10/20 17:16:57 bastian Exp $
+ * $Id: Blkid.xs,v 1.13 2009/10/20 17:54:42 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -363,7 +363,12 @@ blkid_probe_all(_cache)
 	PPCODE:
 		if (cache) {
 			ret = blkid_probe_all(cache);
-			XPUSHs(sv_2mortal(newSViv(ret)));
+			/* Reverse logic -- ret val. 0 is good! */
+			if (ret == 0) {
+				XPUSHs(sv_2mortal(newSViv(1)));
+			} else {
+				XPUSHs(&PL_sv_undef);
+			}
 		} else {
 			XPUSHs(&PL_sv_undef);
 		}
@@ -379,7 +384,12 @@ blkid_probe_all_new(_cache)
 	PPCODE:
 		if (cache) {
 			ret = blkid_probe_all_new(cache);
-			XPUSHs(sv_2mortal(newSViv(ret)));
+			/* Reverse logic -- ret val. 0 is good! */
+			if (ret == 0) {
+				XPUSHs(sv_2mortal(newSViv(1)));
+			} else {
+				XPUSHs(&PL_sv_undef);
+			}
 		} else {
 			XPUSHs(&PL_sv_undef);
 		}
@@ -743,6 +753,20 @@ int
 blkid_send_uevent(devname, action)
 	const char *devname
 	const char *action
+	INIT:
+		int ret;
+	PPCODE:
+		if (devname && action) {
+			ret = blkid_send_uevent(devname, action);
+			/* Reverse logic -- ret val. 0 is good! */
+			if (ret == 0) {
+				XPUSHs(sv_2mortal(newSViv(1)));
+			} else {
+				XPUSHs(&PL_sv_undef);
+			}
+		} else {
+			XPUSHs(&PL_sv_undef);
+		}
 
 ### extern char *blkid_evaluate_tag(const char *token, const char *value,
 ### 				blkid_cache *cache);
