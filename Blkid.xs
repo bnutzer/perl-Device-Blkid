@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.9 2009/10/20 10:01:47 bastian Exp $
+ * $Id: Blkid.xs,v 1.10 2009/10/20 10:20:58 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -141,6 +141,8 @@ blkid_tag_iterate sv2tag_iterate(SV *sv, char *func) {
 
 
 MODULE = Device::Blkid PACKAGE = Device::Blkid
+
+PROTOTYPES: DISABLE
 
 ### typedef struct blkid_struct_dev *blkid_dev;
 ### typedef struct blkid_struct_cache *blkid_cache;
