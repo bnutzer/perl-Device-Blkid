@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.7 2009/10/20 10:00:13 bastian Exp $
+ * $Id: Blkid.xs,v 1.8 2009/10/20 10:01:14 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -166,6 +166,7 @@ blkid_put_cache(_cache)
 	PPCODE:
 		if (cache) {
 			blkid_put_cache(cache);
+			*_cache = PL_sv_undef;
 			XPUSHs(sv_2mortal(newSViv(1)));
 		} else {
 			XPUSHs(&PL_sv_undef);
