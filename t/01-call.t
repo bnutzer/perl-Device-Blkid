@@ -1,10 +1,27 @@
 #!/usr/bin/perl -w
 
-use Test::More tests => 15;
+use Test::More tests => 35;
 use Data::Dumper;
+
+use FindBin qw($Bin);
+
+use POSIX ();
 
 BEGIN { use_ok('Device::Blkid', ':funcs', ':consts'); }
 
+
+sub hashrefToString {
+	my ($h) = @_;
+
+	my $k = keys(%{$h});
+	my $ret = '';
+
+	foreach my $k (keys(%{$h})) {
+		$ret .= ', ' if ($ret);
+		$ret .= sprintf('%s = %s', $k, $h->{$k});
+	}
+	return $ret;
+}
 
 #
 # Device names, file names
@@ -38,140 +55,225 @@ ok($cache->isa('Device::Blkid::Cache'), sprintf('cache from %s is a valid cache'
 ok(!defined(blkid_put_cache('Just a text')), "Bogus cache was correctly rejected");
 ok(!defined(blkid_gc_cache('Just a text')), "Bogus cache was correctly rejected by blkid_gc_cache");
 
-ok(blkid_gc_cache($cache), "Successfully 'gc' the cache again\n");
+ok(blkid_gc_cache($cache), "Successfully ran garbage collection on the cache\n");
 
 is(blkid_probe_all($cache), 0, "probe_all returns successfully");
 
-ok(blkid_put_cache($cache), "Successfully set the cache again");
+ok(blkid_put_cache($cache), "Successfully put the cache again");
 is($cache, undef, 'Cache is undef after put');
 
+
+diag("Re-loading cache, get dev obj for $checkdev");
+$cache = blkid_get_cache($cachefile);
 my $dev = blkid_get_dev($cache, $checkdev, 0);
 
 is(blkid_dev_devname($dev), $checkdev, "blkid_dev_devname returned '$checkdev' again");
 
-##############################################
 
-if (0) {
-	printf( "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n" .
-		"type(checkdev) = %s\n",
-		blkid_get_tag_value($cache,
-					undef,
-					$checkdev
-				)
-	);
+##############################################
+#
+# Continue only if running on linux, and have an fstab
+# blkid only expected to exist on linux, so that does not matter
+
+die('Expecting to run under Linux -- Perl reports "' . $^O . '". Cannot cope with that -- exiting.') if ($^O ne 'linux');
+die('Unable to find an fstab -- exiting.') if (! -e '/etc/fstab');
+
+##############################################
+#
+# Evaluate mount table
+#
+
+my $rootdev;
+my $roottype;
+my $rootuuid;
+my $swapdev;
+
+my $rootobj;
+my $swapobj;
+
+my $mtab;
+
+diag("Evaluating fstab");
+open($mtab, '<', '/etc/fstab');
+while (<$mtab>) {
+	$_ =~ s/#.*//;
+	my ($_dev, $_mpath, $_type, @_more) = split();
+	next unless defined($_mpath);
+	if ($_mpath eq '/') {
+		if ($_dev =~ m#^/dev#) {
+			$rootdev = $_dev;
+			$roottype = $_type;
+			diag("Found root dev $rootdev type $roottype");
+		} else {
+			diag("label-based root dev found. Cannot proceed.");
+		}
+	} elsif ($_type eq 'swap') {
+		$swapdev = $_dev;
+		diag("Found swap space $swapdev");
+	}
+
 }
 
 
-##############################################
+die ("Tests require an existing swap entry and a correct root fs entry in fstab -- exiting.") if (!$rootdev || !$swapdev);
 
-if (0) {
-	push @_,'asdf';
-	printf( "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n" .
-		"LABEL(/) = %s\n",
-		Dumper(blkid_get_devname($cache,
-					undef,
-					'/foo'
-				))
-	);
-}
-
-
-
+$rootuuid = blkid_get_tag_value($cache, 'UUID', $rootdev);
 
 ##############################################
+#
+# blkid_get_tag_value, blkid_get_devname
+#
 
-if (1) {
+is(blkid_get_tag_value($cache, 'TYPE', $rootdev), $roottype, sprintf('Root device %s has type %s as expected', $rootdev, $roottype));
+is(blkid_get_tag_value($cache, 'TYPE', $swapdev), 'swap', sprintf('Swap device %s has type %s as expected', $swapdev, 'swap'));
+is(blkid_get_devname($cache, 'TYPE', 'swap'), $swapdev, 'blkid_get_devname returned swap device for type swap');
+
+
+
+##############################################
+#
+# Iteration, searching
+#
+
+my $foundswap;
+my $foundroot;
+my $foundroot2;
+
+foreach my $type ('swap', $roottype, '(undef)') {
 
 	my $iter = blkid_dev_iterate_begin($cache);
-#	my $ret = blkid_dev_set_search($iter, 'TYPE', 'ext3');
 
-#	printf("set_search returned %s\n", Dumper($ret));
+	if ($type ne '(undef)') {
+		my $ret = blkid_dev_set_search($iter, 'TYPE', $type);
+		ok($ret == 0, sprintf('Successfully set search filter %s', ($type ? $type : '(undef)')));
+	}
 
 	while (my $d = blkid_dev_next($iter)) {
-		print(Dumper($d->toHash));
+		my $dname = blkid_dev_devname($d);
+		diag(sprintf('While searching for device with type %s, found dev %s with attributes %s', ($type ? $type : '(undef)'), $dname, hashrefToString($d->toHash)));
+		if (($type eq 'swap') && ($dname eq $swapdev)) {
+			$foundswap = 1;
+			$swapobj = $d;
+		}
+		if (($type eq $roottype) && ($dname eq $rootdev)) {
+			$foundroot = 1;
+			$rootobj = $d;
+		}
+		if (($type eq '(undef)') && ($dname eq $rootdev)) {
+			$foundroot2 = 1;
+		}
+
 	}
 
 	blkid_dev_iterate_end($iter);
 }
 
-##############################################
-
-ok(blkid_dev_has_tag($dev, 'LABEL', '/swap'), 'checkdev is correctly labeld as /swap');
-ok(!blkid_dev_has_tag($dev, 'TYPE', 'ext3'), 'checkdev is not ext3, which is correct');
-ok(!blkid_dev_has_tag($dev, undef, 'ext3'), 'blkid_dev_has_tag returns false with undef arg (1)');
-ok(!blkid_dev_has_tag($dev, 'LABEL', undef), 'blkid_dev_has_tag returns false with undef arg (2)');
-
+ok($foundswap, 'Found my swap again');
+ok($foundroot, 'Found my root again');
+ok($foundroot, 'Found my root in unrestricted search');
 
 ##############################################
+#
+# blkid_dev_has_tag
+#
 
-if (1) {
-	$dev = blkid_find_dev_with_tag($cache, 'LABEL', '/swap');
-	print(Dumper($dev->toHash()));
+my $tags = $swapobj->toHash();	# toHash includes blkid_tag_iterate_begin, blkid_tag_next, blkid_tag_iterate_end
+ok((defined($tags->{TYPE}) && defined($tags->{UUID})), 'tag iteration includes type and uuid for swap device');
+
+ok(blkid_dev_has_tag($swapobj, 'TYPE', 'swap'), 'swap device is correctly labeled as swap');
+ok(!blkid_dev_has_tag($swapobj, undef, 'ext3'), 'blkid_dev_has_tag returns false with undef type arg');
+ok(!blkid_dev_has_tag($swapobj, 'LABEL', undef), 'blkid_dev_has_tag returns false with undef value arg and invalid type arg');
+
+
+
+##############################################
+#
+# blkid_find_dev_with_tag
+#
+
+my $swapobj2 = blkid_find_dev_with_tag($cache, 'TYPE', 'swap');
+is(blkid_dev_devname($swapobj2), $swapdev, "Found swap device $swapdev via blkid_find_dev_with_tag with values " . hashrefToString($swapobj2->toHash));
+
+
+##############################################
+#
+# String parsing, encoding, lib version, similar
+#
+
+my $s = 'LABEL="foo"';
+my $parsed = blkid_parse_tag_string($s);
+is_deeply($parsed, { value => 'foo', type => 'LABEL' }, 'blkid_parse_tag_string parsed string "' . $s .'" successfully');
+
+$parsed = blkid_parse_tag_string('LABEfoo"');
+ok(!$parsed, 'blkid_parse_tag_string successfully rejected a broken string');
+
+$parsed = blkid_parse_version_string('1.23.45');
+is($parsed, '12345', 'blkid_parse_version_string parsed a version');
+
+$s = "safe string with Umlauts äöü";
+my $s2 = $s;
+$s2 =~ s/\s/\\x20/g;
+is(blkid_encode_string($s), $s2, 'blkid_encode_string transformed string "' . $s . '" to "' . $s2 . '"');
+$s2 = $s;
+$s2 =~ s/\s/_/g;
+is(blkid_safe_string($s), $s2, 'blkid_safe_string transformed whitespace in ' . $s);
+
+my $version = blkid_get_library_version();
+my @version_keys = sort(keys(%{$version}));
+is_deeply(\@version_keys, [ 'date', 'int', 'ver' ], 'blkid_get_library_version returns a date, an internal version, and a version');
+
+
+##############################################
+#
+# blkid_evaluate_tag
+#
+
+SKIP: {
+	skip 'No uuid for root device', 1 if (!$rootuuid);
+
+	my $rootdev2 = blkid_evaluate_tag('UUID', $rootuuid);
+	is($rootdev2, $rootdev, "blkid_evaluate_tag returned $rootdev for UUID=$rootuuid");
 }
 
 ##############################################
+#
+# known fs types
+#
 
-if (0) {
-	my $foo = blkid_parse_tag_string('LABEL="foo"');
-	print(Dumper($foo));
-
-	$foo = blkid_parse_tag_string('LABEfoo"');
-	print(Dumper($foo));
-}
+ok(blkid_known_fstype('ext3'), 'blkid knows fstype ext3');
+ok(!blkid_known_fstype('nosuchfs'), 'blkid correctly does not know fstype nosuchfs');
 
 ##############################################
+#
+# probe_all(_new)
+#
 
-if (0) {
-	$foo = blkid_parse_version_string('8');
-	print(Dumper($foo));
-}
-
-##############################################
-
-if (0) {
-	print(Dumper(blkid_get_library_version()));
-}
-
+ok(blkid_probe_all($cache), 'blkid_probe_all called successfully');
+ok(blkid_probe_all_new($cache), 'blkid_probe_all_new called successfully');
 
 ##############################################
-
-if (0) {
-	print(Dumper(blkid_encode_string("foooo+üooooobar-123")));
-	print(Dumper(blkid_safe_string("foooo+üooooobar-123")));
-}
-
-##############################################
-
-if (0) {
-	print(Dumper(blkid_send_uevent('/dev/sda1', 'foo')));
-}
+#
+# blkid_send_uevent
+#
+ok(blkid_send_uevent('/dev/sda1', 'unknownAction'), 'blkid_send_uevent sends action');
+ok(!blkid_send_uevent('nosuchdevice', 'invalidaction'), 'blkid_send_uevent correctly fails sending action to invalid device');
 
 
 ##############################################
-
-if (0) {
-	print(Dumper(blkid_evaluate_tag('LABEL', '/swap')));
-}
-
-##############################################
-
-if (0) {
-	print(Dumper(blkid_known_fstype('drbd')));
-}
-
-##############################################
-
-if (0) {
-	print(Dumper(blkid_new_probe()));
-}
+#
+# blkid_get_dev_size
+#
+my $fn = $Bin . '/imgs/ext3.img';
+my $fd = POSIX::open($fn);
+is(blkid_get_dev_size($fd), 1048576, "Test image $fn is 1M in size as expected");
+POSIX::close($fd);
 
 
 ##############################################
+#
+# blkid_verify
+#
 
-if (0) {
-	my $probe = blkid_new_probe();
-	print(Dumper(blkid_probe_filter_types($probe, 0, [ "foo", "bar" ] )));
-}
-
-##############################################
+$swapobj2 = blkid_verify($cache, $swapobj);
+isa_ok($swapobj2, 'Device::Blkid::Device', 'blkid_verify returned a valid device object:');
 
