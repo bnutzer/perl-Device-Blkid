@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.17 2009/10/21 17:35:18 bastian Exp $
+ * $Id: Blkid.xs,v 1.18 2009/10/21 18:54:58 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -321,6 +321,7 @@ blkid_dev_next(_iterate)
 
 
 ### extern void blkid_dev_iterate_end(blkid_dev_iterate iterate);
+# Object destructor calls _DO_... function below
 
 void
 blkid_dev_iterate_end(_iterate)
@@ -595,10 +596,11 @@ blkid_tag_next(_iterate)
 		const char *value;
 
 		HV *rh;
+		int ret;
 	PPCODE:
 		if (iterate) {
-			blkid_tag_next(iterate, &type, &value);
-			if (type && value) {
+			ret = blkid_tag_next(iterate, &type, &value);
+			if (type && value && (ret == 0)) {
 
 				rh = (HV *)sv_2mortal((SV *)newHV());
 
@@ -615,7 +617,7 @@ blkid_tag_next(_iterate)
 
 
 ### extern void blkid_tag_iterate_end(blkid_tag_iterate iterate);
-
+# Object destructor calls _DO_... function below
 void
 blkid_tag_iterate_end(_iterate)
 	SV *_iterate
@@ -821,14 +823,25 @@ blkid_send_uevent(devname, action)
 
 
 SV *
-blkid_evaluate_tag(token, value)
+blkid_evaluate_tag(token, value, ...)
 	const char *token
 	const char *value
 	INIT:
 		char *ret;
+		SV *_cache = NULL;
+		blkid_cache cache = NULL;
 	PPCODE:
+		if (items > 3) {
+			Perl_croak(aTHX_ "Usage: Device::Blkid::blkid_evaluate_tag(token, value)");
+		}
+		if (items == 3) {
+			_cache = ST(2);
+			if (SvOK(_cache)) {
+				cache = sv2cache(_cache, "blkid_evaluate_tag");
+			}
+		}
 		if (token && value) {
-			ret = blkid_evaluate_tag(token, value, NULL); // Don't use cache. TODO XXX
+			ret = blkid_evaluate_tag(token, value, cache);
 			XPUSHs(sv_2mortal(newSVpv(ret, 0)));
 			free(ret);
 		} else {
