@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.20 2009/10/21 19:19:42 bastian Exp $
+ * $Id: Blkid.xs,v 1.21 2009/10/21 20:59:06 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -372,8 +372,6 @@ blkid_devno_to_devname(major, ...)
 				Perl_croak(aTHX_ "Usage: Device::Blkid::_blkid_devno_to_devname(major, minor|devno)");
 			}
 		}
-
-		printf("devno is %d\n", devno);
 
 		ret = blkid_devno_to_devname(devno);
 		if (ret) {
