@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.19 2009/10/21 19:04:43 bastian Exp $
+ * $Id: Blkid.xs,v 1.20 2009/10/21 19:19:42 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -830,6 +830,7 @@ blkid_evaluate_tag(token, value, ...)
 		char *ret;
 		SV *_cache = NULL;
 		blkid_cache cache = NULL;
+		blkid_cache *cachep = NULL;
 	PPCODE:
 		if (items > 3) {
 			Perl_croak(aTHX_ "Usage: Device::Blkid::blkid_evaluate_tag(token, value)");
@@ -838,10 +839,11 @@ blkid_evaluate_tag(token, value, ...)
 			_cache = ST(2);
 			if (SvOK(_cache)) {
 				cache = sv2cache(_cache, "blkid_evaluate_tag");
+				cachep = &cache; /* WTF??? */
 			}
 		}
 		if (token && value) {
-			ret = blkid_evaluate_tag(token, value, cache);
+			ret = blkid_evaluate_tag(token, value, cachep);
 			XPUSHs(sv_2mortal(newSVpv(ret, 0)));
 			free(ret);
 		} else {
