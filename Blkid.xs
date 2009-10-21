@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.18 2009/10/21 18:54:58 bastian Exp $
+ * $Id: Blkid.xs,v 1.19 2009/10/21 19:04:43 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -902,7 +902,6 @@ blkid_reset_probe(_pr)
 
 ### extern int blkid_probe_set_device(blkid_probe pr, int fd,
 ### 	                blkid_loff_t off, blkid_loff_t size);
-# // TODO: Completely useless? Again, using file descriptors
 
 int
 blkid_probe_set_device(_pr, fd, off, size)
