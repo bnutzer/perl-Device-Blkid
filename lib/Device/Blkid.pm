@@ -1,4 +1,4 @@
-# $Id: Blkid.pm,v 1.9 2009/10/21 16:21:56 bastian Exp $
+# $Id: Blkid.pm,v 1.10 2009/10/21 19:05:50 bastian Exp $
 # Copyright (c) 2007 Collax GmbH
 package Device::Blkid;
 
@@ -45,6 +45,9 @@ in most cases.
  print("Dump of device attributes: " . Dumper($device));
 
 Most devices contain a label, a UUID, and a type.
+
+Please note that functions in section L</probe.c> are currently untested and
+undocumented.
 
 =head1 EXPORT
 
@@ -368,6 +371,11 @@ device number (devno) will be C<major << 8 + minor>.
  	blkid_devno_to_devname(8,1),
 	blkid_devno_to_devname(2049));
 
+Undef is returned for non-existing devices:
+
+ if (!blkid_devno_to_devname(0, 1)) {
+ 	print("No Device 0, 1 found\n");
+ }
 
 =head2 devname.c
 
@@ -395,715 +403,227 @@ Returns the size of the given device. Please note that the device is passed by
 a file descriptor (B<not a Perl file handle!>). See L<POSIX::open> for more
 information.
 
-XXXXXXXXXXXXXxxxxxxxxxXXXXXXXXXXXXxxxxXXXXXXXXXXXXXXxxxXXXXXXXXxxxXXxxXXxxXXxxXXXxx
-XXXXXXXXXXXXXxxxxxxxxxXXXXXXXXXXXXxxxxXXXXXXXXXXXXXXxxxXXXXXXXXxxxXXxxXXxxXXxxXXXxx
-XXXXXXXXXXXXXxxxxxxxxxXXXXXXXXXXXXxxxxXXXXXXXXXXXXXXxxxXXXXXXXXxxxXXxxXXxxXXxxXXXxx
-XXXXXXXXXXXXXxxxxxxxxxXXXXXXXXXXXXxxxxXXXXXXXXXXXXXXxxxXXXXXXXXxxxXXxxXXxxXXxxXXXxx
 
-=head3 Function blkid_devno_to_devname(major, minor|devno)
+=head2 verify.c
 
-Return device name for device with given major/minor number combination, or device number.
+=head3 Function C<blkid_verify($cache, $dev)>
 
- my $name = blkid_devno_to_devname(8, 1); # Is "/dev/sda"
- if (!blkid_devno_to_devname(0, 1)) {
- 	print("No Device 0, 1 found\n");
+Verify that the data in C<$dev> is consistent with what is on the actual
+block device (using the devname field only). Normally this will be
+called when finding items in the cache, but for long running processes
+is also desirable to revalidate an item before use.
+
+C<$dev> is expected to be a C<Device::Blkid::Device> object (as returned e.g.
+by blkid_get_dev), not a device name.
+
+=head2 read.c
+
+C<read.c> does not contain any user-accessible functions.
+
+=head2 resolve.c
+
+=head3 Function C<blkid_get_tag_value($cache, $tagname, $devname)>
+
+Returns the requested tag for a device (or false uppon failure), e.g.:
+
+ printf("Type of my sda1 is %s\n",
+ 	blkid_get_tag_value($cache, 'TYPE', '/dev/sda1'));
+
+=head3 Function C<blkid_get_devname($cache, $token, $value)>
+
+Return the first device with the given tag/value pair, e.g.
+
+ printf("Device with label foo is %s\n",
+ 	blkid_get_devname($cache, 'LABEL', 'foo'));
+ printf("Identical request with token as name=value: %s\n",
+ 	blkid_get_devname($cache, 'LABEL=foo'));
+
+=head2 tag.c
+
+The three following functions
+C<blkid_tag_iterate_begin($dev)>,
+C<blkid_tag_next($iterate)>, and
+C<blkid_tag_iterate_end> iterate over the attributes of a requested
+device (C<Device::Blkid::Device>, not device name).
+
+Object method L<Device::Blkid::Device::toHash()> provides a much simpler
+way to access all attributes.
+
+=head3 Function C<blkid_tag_iterate_begin($dev)>
+
+Fetches an iterator object for the given device.
+
+=head3 Function C<blkid_tag_next($iterate)>
+
+Returns the next attribute set for the device as a hash of this structure:
+
+ $VAR1 = {
+ 	type	=> 'LABEL',
+	value	=> 'myLabel',
+ };
+
+Returns undef, when there are no more entries (or uppon other failures).
+
+=head3 Function C<blkid_tag_iterate_end($iterate)>
+
+Frees data associated with this object. Auto-destruction is implemented, when
+the iterator object is freed, i.e. you do not have to call this function
+manually.
+
+=head3 Function C<blkid_dev_has_tag($dev, $type, $value)>
+
+Checks whether the given device has the attribute $type=$value set; returns
+true in that case, false otherwise.
+
+ if (blkid_dev_has_tag($dev, 'LABEL', 'foo')) {
+ 	print("Yes, your device is labeled foo\n");
  }
 
- $name = blkid_devno_to_devname(2049); # Is "/dev/sda"
- if (!blkid_devno_to_devname(1)) {
- 	print("No Device 1 found\n");
- }
+=head3 Function C<blkid_find_dev_with_tag($cache, $type, $value)>
+
+Finds (and returns) the first device with the given type/value pair,
+and returns it as an object of type C<Device::Blkid::Device>.
+
+=head3 Function C<blkid_parse_tag_string($token)>
+
+For a given string "foo=bar", returns a hash
+C<{ type => 'foo', value => 'bar'}>.
+
+Returns undef if the string is not parsable.
+
+=head2 version.c
+
+=head3 Function C<blkid_parse_version_string($ver_string)>
+
+Returns an integer representation of a version string. Internal format
+in libblkid.
+
+=head3 Function C<blkid_get_library_version($ver_string, $date_string)>
+
+Returns a hash containing basic information about the installed version of
+libblkid:
+
+ $VAR1 = {
+ 	int	=> 2160,
+	ver	=> '2.16.0',
+	date	=> '10-Feb-2009',
+ };
+
+=head2 encode.c
+
+=head3 Function C<blkid_encode_string($str)>
+
+Encode all potentially unsafe characters of a string to the corresponding
+hex value prefixed by '\x'.
+
+Returns that string on success, or undef on failure. Other than the libblkid
+version, no partial strings are returned.
+
+=head3 Function C<blkid_safe_string($str)>
+
+Allows plain ascii, hex-escaping and valid utf8. Replaces all whitespaces
+with '_'.
+
+Returns that string on success, or undef on failure.
+
+=head2 evaluate.c
+
+=head3 Function C<blkid_send_uevent($devname, $action)>
+
+Sends the given action as a uevent to the udev entry of the respective device.
+
+Returns a true value on success, a false value on failure. Please note that
+"success" does B<not> necessarily mean that the uevent was triggered
+successfully.
+
+=head3 Function C<blkid_evaluate_tag($token, $value, $cache)>
+
+Returns the device name where the given token=value pair holds, or undef on
+failure.
+
+C<$cache> argument may be ommited.
+
+=head2 probe.c
+
+Most functions in this section have NOT been tested well and currently remain
+undocumented. Please see libblkid for further information.
+
+=head3 Function C<blkid_known_fstype($fstype)>
+
+Checks whether fs type C<$fstype> is known by the installed version of
+libblkid. Returns true in that case, false otherwise.
+
+=head3 Function C<blkid_new_probe()>
+
+Undocumented (and largely untested).
+
+=head3 Function C<blkid_free_probe($pr)>
+
+Undocumented (and largely untested).
+
+=head3 Function C<blkid_reset_probe($pr)>
+
+Undocumented (and largely untested).
+
+=head3 Function C<blkid_probe_set_device($pr, $fd, $off, $size)>
+
+Undocumented (and largely untested).
+
+=head3 Function C<blkid_probe_set_request($pr, $flags)>
+
+Undocumented (and largely untested).
+
+=head3 Function C<blkid_probe_filter_usage($pr, $flag, $usage)>
+
+Undocumented (and largely untested).
+
+=head3 Function C<blkid_probe_filter_types($pr, $flag, $names, ...)>
+
+Undocumented (and largely untested).
+
+B<DO NOT USE.>
+
+=head3 Function C<blkid_probe_invert_filter($pr)>
+
+Undocumented (and largely untested).
+
+=head3 Function C<blkid_probe_reset_filter($pr)>
+
+Undocumented (and largely untested).
+
+=head3 Function C<blkid_do_probe($pr)>
+
+Undocumented (and largely untested).
+
+=head3 Function C<blkid_do_safeprobe($pr)>
+
+Undocumented (and largely untested).
+
+=head3 Function C<blkid_probe_numof_values($pr)>
+
+Undocumented (and largely untested).
+
+=head3 Function C<blkid_probe_get_value($pr, $num)>
+
+Undocumented (and largely untested).
+
+Returns a string on success, undef on failure (this differs from the library
+behavior).
+
+=head3 Function C<blkid_probe_lookup_value($pr, $name)>
+
+Undocumented (and largely untested).
+
+Returns a string on success, undef on failure (this differs from the library
+behavior).
+
+=head3 Function C<blkid_probe_has_value($pr, $name)>
+
+Undocumented (and largely untested).
 
 =cut
-
-# XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX 
 
 bootstrap Device::Blkid;
-
-=pod
-
-
-
-### /* verify.c */
-### extern blkid_dev blkid_verify(blkid_cache cache, blkid_dev dev);
-# // TODO Untested
-
-SV *
-blkid_verify(_cache, _dev)
-	SV *_cache
-	SV *_dev
-	PREINIT:
-		blkid_cache cache = sv2cache(_cache, "blkid_verify");
-		blkid_dev dev = sv2dev(_dev, "blkid_verify");
-		blkid_dev ret;
-		SV *_ret;
-	PPCODE:
-		if (cache && dev) {
-			ret = blkid_verify(cache, dev);
-
-			_ret = sv_newmortal();
-			sv_setref_pv(_ret, "Device::Blkid::Device", (void *)ret);
-			SvREADONLY_on(SvRV(_ret));
-			XPUSHs(_ret);
-		} else {
-			XPUSHs(&PL_sv_undef);
-		}
-		
-
-### /* read.c */
-### 
-### /* resolve.c */
-### extern char *blkid_get_tag_value(blkid_cache cache, const char *tagname,
-### 				       const char *devname);
-
-char *
-blkid_get_tag_value(_cache, _tagname, _devname)
-	SV *_cache
-	SV *_tagname
-	SV *_devname
-	PREINIT:
-		blkid_cache cache = sv2cache(_cache, "blkid_get_tag_value");
-		char *tagname = SvOK(_tagname) ? SvPV_nolen(_tagname) : NULL;
-		char *devname = SvOK(_devname) ? SvPV_nolen(_devname) : NULL;
-		char *ret;
-	CODE:
-		RETVAL = NULL;
-		if (tagname && devname) {
-			RETVAL = blkid_get_tag_value(cache, tagname, devname);
-		}
-	OUTPUT:
-		RETVAL
-
-		
-
-### extern char *blkid_get_devname(blkid_cache cache, const char *token,
-### 			       const char *value);
-
-char *
-blkid_get_devname(_cache, _token, _value)
-	SV *_cache
-	SV *_token
-	SV *_value
-	PREINIT:
-		blkid_cache cache = sv2cache(_cache, "blkid_get_tag_value");
-		char *token = (SvOK(_token) && SvPOK(_token)) ? SvPV_nolen(_token) : NULL;
-		char *value = (SvOK(_value) && SvPOK(_value)) ? SvPV_nolen(_value) : NULL;
-		char *ret = NULL;
-		SV *_ret = NULL;
-	CODE:
-		RETVAL = NULL;
-		if (cache && token && value) {
-			RETVAL = blkid_get_devname(cache, token, value);
-		}
-	OUTPUT:
-		RETVAL
-		
-
-
-### 
-### /* tag.c */
-### extern blkid_tag_iterate blkid_tag_iterate_begin(blkid_dev dev);
-
-SV *
-blkid_tag_iterate_begin(_dev)
-	SV *_dev
-	INIT:
-		blkid_dev dev = sv2dev(_dev, "blkid_tag_iterate_begin");
-		blkid_tag_iterate tag_iterate = NULL;
-		SV *_tag_iterate;
-	PPCODE:
-		if (dev) {
-			tag_iterate = blkid_tag_iterate_begin(dev);
-		}
-
-		if (tag_iterate) {
-			_tag_iterate = sv_newmortal();
-			sv_setref_pv(_tag_iterate, "Device::Blkid::TagIterate", (void *)tag_iterate);
-			SvREADONLY_on(SvRV(_tag_iterate));
-			XPUSHs(_tag_iterate);
-		} else {
-			XPUSHs(&PL_sv_undef);
-		}
-
-
-### extern int blkid_tag_next(blkid_tag_iterate iterate,
-### 			      const char **type, const char **value);
-
-SV *
-blkid_tag_next(_iterate)
-	SV *_iterate
-	INIT:
-		blkid_tag_iterate iterate = sv2tag_iterate(_iterate, "blkid_tag_next");
-		const char *type;
-		const char *value;
-
-		HV *rh;
-	PPCODE:
-		if (iterate) {
-			blkid_tag_next(iterate, &type, &value);
-			if (type && value) {
-
-				rh = (HV *)sv_2mortal((SV *)newHV());
-
-				hv_store(rh, "type", 4, newSVpv(type, 0), 0);
-				hv_store(rh, "value", 5, newSVpv(value, 0), 0);
-
-				XPUSHs(sv_2mortal(newRV((SV *) rh)));
-			} else {
-				XPUSHs(&PL_sv_undef);
-			}
-		} else {
-			XPUSHs(&PL_sv_undef);
-		}
-
-
-### extern void blkid_tag_iterate_end(blkid_tag_iterate iterate);
-
-void
-blkid_tag_iterate_end(_iterate)
-	SV *_iterate
-	INIT:
-		blkid_tag_iterate iterate = sv2tag_iterate(_iterate, "blkid_tag_iterate_end");
-	CODE:
-		if (iterate) {
-			blkid_tag_iterate_end(iterate);
-		}
-
-
-### extern int blkid_dev_has_tag(blkid_dev dev, const char *type,
-### 			     const char *value);
-
-IV
-blkid_dev_has_tag(_dev, type, value)
-	SV *_dev
-	const char *type
-	const char *value
-	INIT:
-		blkid_dev dev = sv2dev(_dev, "blkid_dev_has_tag");
-	CODE:
-		/* blkid_dev_has_tag does NOT accept empty value (and "LABEL=foo" type) */
-		if (dev && type && value) {
-			RETVAL = blkid_dev_has_tag(dev, type, value);
-		} else {
-			RETVAL = 0;
-		}
-	OUTPUT:
-		RETVAL
-	
-
-### extern blkid_dev blkid_find_dev_with_tag(blkid_cache cache,
-### 					 const char *type,
-### 					 const char *value);
-
-SV *
-blkid_find_dev_with_tag(_cache, type, value)
-	SV *_cache
-	const char *type
-	const char *value
-	INIT:
-		blkid_cache cache = sv2cache(_cache, "blkid_find_dev_with_tag");
-		blkid_dev dev = NULL;
-		SV *_dev = NULL;
-	PPCODE:
-		if (cache) {
-			dev = blkid_find_dev_with_tag(cache, type, value);
-		}
-
-		if (dev) {
-			_dev = sv_newmortal();
-			sv_setref_pv(_dev, "Device::Blkid::Device", (void *)dev);
-			SvREADONLY_on(SvRV(_dev));
-			XPUSHs(_dev);
-		} else {
-			XPUSHs(&PL_sv_undef);
-		}
-
-
-### extern int blkid_parse_tag_string(const char *token, char **ret_type,
-### 				  char **ret_val);
-
-SV *
-blkid_parse_tag_string(token)
-	const char *token
-	INIT:
-		char *ret_type;
-		char *ret_val;
-
-		HV *rh;
-
-		int ret;
-	PPCODE:
-		if (token) {
-			ret = blkid_parse_tag_string(token, &ret_type, &ret_val);
-			if (ret == 0 && ret_type && ret_val) {
-
-				rh = (HV *)sv_2mortal((SV *)newHV());
-
-				hv_store(rh, "type", 4, newSVpv(ret_type, 0), 0);
-				hv_store(rh, "value", 5, newSVpv(ret_val, 0), 0);
-
-				XPUSHs(sv_2mortal(newRV((SV *) rh)));
-			} else {
-				XPUSHs(&PL_sv_undef);
-			}
-		} else {
-			XPUSHs(&PL_sv_undef);
-		}
-
-### 
-### /* version.c */
-### extern int blkid_parse_version_string(const char *ver_string);
-
-int
-blkid_parse_version_string(ver_string)
-	const char *ver_string
-
-### extern int blkid_get_library_version(const char **ver_string,
-### 				     const char **date_string);
-### 
-
-SV *
-blkid_get_library_version()
-	INIT:
-		const char *ver_string;
-		const char *date_string;
-		HV *rh;
-		int ret;
-	PPCODE:
-		ret = blkid_get_library_version(&ver_string, &date_string);
-
-		rh = (HV *)sv_2mortal((SV *)newHV());
-
-		hv_store(rh, "int", 3, newSViv(ret), 0);
-
-		if (ver_string && date_string) {
-
-
-			hv_store(rh, "ver", 3, newSVpv(ver_string, 0), 0);
-			hv_store(rh, "date", 4, newSVpv(date_string, 0), 0);
-
-		}
-
-		XPUSHs(sv_2mortal(newRV((SV *) rh)));
-
-
-### /* encode.c */
-### extern int blkid_encode_string(const char *str, char *str_enc, size_t len);
-# // TODO: derive string length from input. What does this function do anyways?
-
-SV *
-blkid_encode_string(str)
-	const char *str
-	INIT:
-		char str_enc[1024];
-
-		int ret;
-	PPCODE:
-		ret = blkid_encode_string(str, str_enc, 1023);
-		if (ret != 0) {
-			XPUSHs(&PL_sv_undef);
-		} else {
-			XPUSHs(sv_2mortal(newSVpv(str_enc, 0)));
-		}
-
-
-### extern int blkid_safe_string(const char *str, char *str_safe, size_t len);
-# // TODO: derive string length from input. What does this function do anyways?
-
-SV *
-blkid_safe_string(str)
-	const char *str
-	INIT:
-		char str_safe[1024];
-
-		int ret;
-	PPCODE:
-		ret = blkid_safe_string(str, str_safe, 1023);
-		if (ret != 0) {
-			XPUSHs(&PL_sv_undef);
-		} else {
-			XPUSHs(sv_2mortal(newSVpv(str_safe, 0)));
-		}
-
-
-
-### /* evaluate.c */
-### extern int blkid_send_uevent(const char *devname, const char *action);
-
-int
-blkid_send_uevent(devname, action)
-	const char *devname
-	const char *action
-	INIT:
-		int ret;
-	PPCODE:
-		if (devname && action) {
-			ret = blkid_send_uevent(devname, action);
-			/* Reverse logic -- ret val. 0 is good! */
-			if (ret == 0) {
-				XPUSHs(sv_2mortal(newSViv(1)));
-			} else {
-				XPUSHs(&PL_sv_undef);
-			}
-		} else {
-			XPUSHs(&PL_sv_undef);
-		}
-
-### extern char *blkid_evaluate_tag(const char *token, const char *value,
-### 				blkid_cache *cache);
-
-
-SV *
-blkid_evaluate_tag(token, value)
-	const char *token
-	const char *value
-	INIT:
-		char *ret;
-	PPCODE:
-		if (token && value) {
-			ret = blkid_evaluate_tag(token, value, NULL); // Don't use cache. TODO XXX
-			XPUSHs(sv_2mortal(newSVpv(ret, 0)));
-			free(ret);
-		} else {
-			XPUSHs(&PL_sv_undef);
-		}
-
-
-
-### /* probe.c */
-### extern int blkid_known_fstype(const char *fstype);
-
-int
-blkid_known_fstype(fstype)
-	const char *fstype
-
-### extern blkid_probe blkid_new_probe(void);
-
-SV *
-blkid_new_probe()
-	INIT:
-		blkid_probe probe = NULL;
-		SV *_probe;
-	PPCODE:
-		probe = blkid_new_probe();
-		if (probe) {
-			_probe = sv_newmortal();
-			sv_setref_pv(_probe, "Device::Blkid::Probe", (void *)probe);
-			SvREADONLY_on(SvRV(_probe));
-			XPUSHs(_probe);
-		} else {
-			XPUSHs(&PL_sv_undef);
-		}
-
-### extern void blkid_free_probe(blkid_probe pr);
-
-void
-blkid_free_probe(_pr)
-	SV *_pr
-	INIT:
-		blkid_probe pr = sv2probe(_pr, "blkid_free_probe");
-	CODE:
-		if (pr) {
-			blkid_free_probe(pr);
-		}
-
-### extern void blkid_reset_probe(blkid_probe pr);
-
-void
-blkid_reset_probe(_pr)
-	SV *_pr
-	INIT:
-		blkid_probe pr = sv2probe(_pr, "blkid_reset_probe");
-	CODE:
-		if (pr) {
-			blkid_reset_probe(pr);
-		}
-
-
-### extern int blkid_probe_set_device(blkid_probe pr, int fd,
-### 	                blkid_loff_t off, blkid_loff_t size);
-# // TODO: Completely useless? Again, using file descriptors
-
-int
-blkid_probe_set_device(_pr, fd, off, size)
-	SV *_pr
-	int fd
-	int64_t off
-	int64_t size
-	INIT:
-		blkid_probe pr = sv2probe(_pr, "blkid_probe_set_device");
-	CODE:
-		if (pr) {
-			RETVAL = blkid_probe_set_device(pr, fd, off, size);
-		} else {
-			XSRETURN_UNDEF;
-		}
-	OUTPUT:
-		RETVAL
-
-		
-	
-
-### extern int blkid_probe_set_request(blkid_probe pr, int flags);
-
-int
-blkid_probe_set_request(_pr, flags)
-	SV *_pr
-	int flags
-	INIT:
-		blkid_probe pr = sv2probe(_pr, "blkid_probe_set_request");
-	CODE:
-		if (!pr) {
-			XSRETURN_UNDEF;
-		}
-
-		RETVAL = blkid_probe_set_request(pr, flags);
-
-	OUTPUT:
-		RETVAL
-
-
-### extern int blkid_probe_filter_usage(blkid_probe pr, int flag, int usage);
-
-
-int
-blkid_probe_filter_usage(_pr, flag, usage)
-	SV *_pr
-	int flag
-	int usage
-	INIT:
-		blkid_probe pr = sv2probe(_pr, "blkid_probe_filter_usage");
-	CODE:
-		if (!pr) {
-			XSRETURN_UNDEF;
-		}
-
-		RETVAL = blkid_probe_filter_usage(pr, flag, usage);
-
-	OUTPUT:
-		RETVAL
-	
-
-### extern int blkid_probe_filter_types(blkid_probe pr,
-### 			int flag, char *names[]);
-
-# // TODO XXX TODO XXX Segfaults :(
-
-int
-blkid_probe_filter_types(_pr, flag, _names)
-	SV *_pr
-	int flag
-	AV *_names
-	PREINIT:
-		char **names;
-		I32 num; 
-		blkid_probe pr;
-		int i;
-		int ok;
-		SV **_s;
-		char *s;
-	INIT:
-		pr = sv2probe(_pr, "blkid_probe_filter_types");
-	CODE:
-		if (!pr) {
-			XSRETURN_UNDEF;
-		}
-		num = av_len(_names) + 1;
-		if (num < 1) {
-			XSRETURN_UNDEF;
-		}
-		names = malloc(sizeof(char *) * num);
-		for (i = 0; i < num; i++) {
-			ok = 0;
-			_s = av_fetch(_names, i, 0);
-			if (_s) {
-				if (SvOK(*_s)) {
-					if (SvPOK(*_s)) {
-						ok = 1;
-						s = SvPV_nolen(*_s);
-					}
-				}
-			}
-
-			if (ok) {
-				names[i] = s;
-			} else {
-				names[i] = ""; //  XXX or rather NULL?
-			}
-		}
-
-		for (i = 0; i < num; i++) {
-			printf("name %d is %s\n", i, names[i]);
-		}
-
-		RETVAL = blkid_probe_filter_types(pr, flag, names);
-
-		free(names);
-	OUTPUT:
-		RETVAL
-
-
-### extern int blkid_probe_invert_filter(blkid_probe pr);
-
-int
-blkid_probe_invert_filter(_pr)
-	SV *_pr
-	INIT:
-		blkid_probe pr = sv2probe(_pr, "blkid_probe_invert_filter");
-	CODE:
-		if (!pr) {
-			XSRETURN_UNDEF;
-		}
-		RETVAL = blkid_probe_invert_filter(pr);
-	OUTPUT:
-		RETVAL
-
-### extern int blkid_probe_reset_filter(blkid_probe pr);
-
-int
-blkid_probe_reset_filter(_pr)
-	SV *_pr
-	INIT:
-		blkid_probe pr = sv2probe(_pr, "blkid_probe_reset_filter");
-	CODE:
-		if (!pr) {
-			XSRETURN_UNDEF;
-		}
-		RETVAL = blkid_probe_reset_filter(pr);
-	OUTPUT:
-		RETVAL
-
-
-### extern int blkid_do_probe(blkid_probe pr);
-
-int
-blkid_do_probe(_pr)
-	SV *_pr
-	INIT:
-		blkid_probe pr = sv2probe(_pr, "blkid_do_probe");
-	CODE:
-		if (!pr) {
-			XSRETURN_UNDEF;
-		}
-		RETVAL = blkid_do_probe(pr);
-	OUTPUT:
-		RETVAL
-
-
-
-
-### extern int blkid_do_safeprobe(blkid_probe pr);
-
-int
-blkid_do_safeprobe(_pr)
-	SV *_pr
-	INIT:
-		blkid_probe pr = sv2probe(_pr, "blkid_do_safeprobe");
-	CODE:
-		if (!pr) {
-			XSRETURN_UNDEF;
-		}
-		RETVAL = blkid_do_safeprobe(pr);
-	OUTPUT:
-		RETVAL
-
-
-### extern int blkid_probe_numof_values(blkid_probe pr);
-
-int
-blkid_probe_numof_values(_pr)
-	SV *_pr
-	INIT:
-		blkid_probe pr = sv2probe(_pr, "blkid_probe_numof_values");
-	CODE:
-		if (!pr) {
-			XSRETURN_UNDEF;
-		}
-		RETVAL = blkid_probe_numof_values(pr);
-	OUTPUT:
-		RETVAL
-
-
-### extern int blkid_probe_get_value(blkid_probe pr, int num, const char **name,
-###                         const char **data, size_t *len);
-
-SV *
-blkid_probe_get_value(_pr, num)
-	SV *_pr
-	int num
-	INIT:
-		HV *rh = NULL;
-		const char *name;
-		const char *data;
-		size_t len;
-		int ret;
-
-		blkid_probe pr = sv2probe(_pr, "blkid_probe_get_value");
-	PPCODE:
-		if (pr) {
-			ret = blkid_probe_get_value(pr, num, &name, &data, &len);
-
-			if (ret == 0) {
-				rh = (HV *)sv_2mortal((SV *)newHV());
-
-				hv_store(rh, "name", 4, newSVpv(name, 0), 0);
-				hv_store(rh, "data", 4, newSVpv(data, 0), 0);
-
-				XPUSHs(sv_2mortal(newRV((SV *) rh)));
-			} else {
-				XPUSHs(&PL_sv_undef);
-			}
-		} else {
-			XPUSHs(&PL_sv_undef);
-		}
-
-
-
-### extern int blkid_probe_lookup_value(blkid_probe pr, const char *name,
-###                         const char **data, size_t *len);
-
-SV *
-blkid_probe_lookup_value(_pr, name)
-	SV *_pr
-	const char *name
-	INIT:
-		const char *data;
-		size_t len;
-		int ret;
-		SV *_data;
-
-		blkid_probe pr = sv2probe(_pr, "blkid_probe_lookup_value");
-	PPCODE:
-		if (pr) {
-			if (blkid_probe_lookup_value(pr, name, &data, &len) == 0) {
-				XPUSHs(sv_2mortal(newSVpv(data, len)));
-			} else {
-				XPUSHs(&PL_sv_undef);
-			}
-		} else {
-			XPUSHs(&PL_sv_undef);
-		}
-
-
-### extern int blkid_probe_has_value(blkid_probe pr, const char *name);
-
-int
-blkid_probe_has_value(_pr, name)
-	SV *_pr
-	const char *name
-	INIT:
-		blkid_probe pr = sv2probe(_pr, "blkid_probe_has_value");
-	CODE:
-		if (pr) {
-			RETVAL = blkid_probe_has_value(pr, name);
-		} else {
-			XSRETURN_UNDEF;
-		}
-	OUTPUT:
-		RETVAL
-
-
-=cut
 
 package Device::Blkid::Device;
 
