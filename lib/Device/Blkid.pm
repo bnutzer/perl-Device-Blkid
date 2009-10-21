@@ -1,4 +1,4 @@
-# $Id: Blkid.pm,v 1.10 2009/10/21 19:05:50 bastian Exp $
+# $Id: Blkid.pm,v 1.11 2009/10/21 21:02:59 bastian Exp $
 # Copyright (c) 2007 Collax GmbH
 package Device::Blkid;
 
@@ -15,6 +15,10 @@ Version 0.9
 our $VERSION = "0.9";
 
 =head1 SYNOPSIS
+
+B<WARNING: This module requires libblkid 2.16 or newer, i.e. a version
+that ships with util-linux-ng (in contrast to older library versions, which
+were part of e2fsprogs).>
 
 C<Device::Blkid> closely resembles the native interface of libblkid. All
 functions provided by libblkid are available from Perl as well. Most
@@ -635,9 +639,9 @@ C<Device::Blkid> package. They cannot be user-created and are
 
 A single object method exists:
 
-=head1 METHODS
+=head2 METHODS
 
-=head2 Method C<toHash()>
+=head3 Method C<toHash()>
 
 Returns the tags of this device as a hash, e.g.
 
