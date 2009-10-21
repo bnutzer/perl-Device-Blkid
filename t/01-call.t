@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-use Test::More tests => 41;
+use Test::More tests => 42;
 use Data::Dumper;
 
 use FindBin qw($Bin);
@@ -234,10 +234,12 @@ is_deeply(\@version_keys, [ 'date', 'int', 'ver' ], 'blkid_get_library_version r
 #
 
 SKIP: {
-	skip 'No uuid for root device', 1 if (!$rootuuid);
+	skip 'No uuid for root device', 2 if (!$rootuuid);
 
-	my $rootdev2 = blkid_evaluate_tag('UUID', $rootuuid);
+	my $rootdev2 = blkid_evaluate_tag('UUID', $rootuuid, $cache);
 	is($rootdev2, $rootdev, "blkid_evaluate_tag returned $rootdev for UUID=$rootuuid");
+	$rootdev2 = blkid_evaluate_tag('UUID', $rootuuid);
+	is($rootdev2, $rootdev, "blkid_evaluate_tag returned $rootdev for UUID=$rootuuid (using no-cache variant)");
 }
 
 ##############################################
