@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.16 2009/10/21 16:21:56 bastian Exp $
+ * $Id: Blkid.xs,v 1.17 2009/10/21 17:35:18 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -476,7 +476,6 @@ blkid_get_dev_size(fd)
 
 ### /* verify.c */
 ### extern blkid_dev blkid_verify(blkid_cache cache, blkid_dev dev);
-# // TODO Untested
 
 SV *
 blkid_verify(_cache, _dev)
@@ -530,19 +529,27 @@ blkid_get_tag_value(_cache, _tagname, _devname)
 ### 			       const char *value);
 
 char *
-blkid_get_devname(_cache, _token, _value)
+blkid_get_devname(_cache, _token, ...)
 	SV *_cache
 	SV *_token
-	SV *_value
 	PREINIT:
+		SV *_value = NULL;
 		blkid_cache cache = sv2cache(_cache, "blkid_get_tag_value");
 		char *token = (SvOK(_token) && SvPOK(_token)) ? SvPV_nolen(_token) : NULL;
-		char *value = (SvOK(_value) && SvPOK(_value)) ? SvPV_nolen(_value) : NULL;
+		char *value = NULL;
 		char *ret = NULL;
 		SV *_ret = NULL;
 	CODE:
+		if (items > 3) {
+			Perl_croak(aTHX_ "Usage: Device::Blkid::blkid_get_devname(_cache, _token, _value)");
+		} else if (items == 3) {
+			_value = ST(2);
+			if (SvOK(_value) && SvPOK(_value)) {
+				value = SvPV_nolen(_value);
+			}
+		}
 		RETVAL = NULL;
-		if (cache && token && value) {
+		if (cache && token) {
 			RETVAL = blkid_get_devname(cache, token, value);
 		}
 	OUTPUT:
