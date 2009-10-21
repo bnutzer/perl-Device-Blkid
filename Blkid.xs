@@ -1,5 +1,5 @@
 /*
- * $Id: Blkid.xs,v 1.15 2009/10/20 21:06:03 bastian Exp $
+ * $Id: Blkid.xs,v 1.16 2009/10/21 16:21:56 bastian Exp $
  *
  * Copyright (C) 2009 Collax GmbH
  *                    (Bastian Friedrich <bastian.friedrich@collax.com>)
@@ -183,9 +183,11 @@ blkid_get_cache( ... )
 		blkid_cache cache;
 		SV *_cache;
 		int ret;
-		char *filename = NULL;
-		SV *_filename = NULL;;
+		char *filename;
+		SV *_filename;
 	PPCODE:
+		filename = NULL;
+		_filename = NULL;;
 		/* items == null -> use default cache file name; use filename = NULL */
 		if (items == 1) {
 			_filename = ST(0);
@@ -322,6 +324,16 @@ blkid_dev_next(_iterate)
 
 void
 blkid_dev_iterate_end(_iterate)
+	SV *_iterate
+	INIT:
+		blkid_dev_iterate iterate = sv2dev_iterate(_iterate, "blkid_dev_iterate_end");
+	CODE:
+		if (iterate) {
+			sv_setsv(_iterate, &PL_sv_undef);
+		}
+
+void
+_DO_blkid_dev_iterate_end(_iterate)
 	SV *_iterate
 	INIT:
 		blkid_dev_iterate iterate = sv2dev_iterate(_iterate, "blkid_dev_iterate_end");
@@ -604,9 +616,19 @@ blkid_tag_iterate_end(_iterate)
 		blkid_tag_iterate iterate = sv2tag_iterate(_iterate, "blkid_tag_iterate_end");
 	CODE:
 		if (iterate) {
-			blkid_tag_iterate_end(iterate);
+			sv_setsv(_iterate, &PL_sv_undef);
 		}
 
+
+void
+_DO_blkid_tag_iterate_end(_iterate)
+	SV *_iterate
+	INIT:
+		blkid_tag_iterate iterate = sv2tag_iterate(_iterate, "blkid_tag_iterate_end");
+	CODE:
+		if (iterate) {
+			blkid_tag_iterate_end(iterate);
+		}
 
 ### extern int blkid_dev_has_tag(blkid_dev dev, const char *type,
 ### 			     const char *value);
