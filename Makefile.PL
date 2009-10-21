@@ -18,6 +18,6 @@ WriteMakefile(
     INC                 => '-I.',
 
     EXE_FILES           => [],
-    dist => { COMPRESS => 'bzip2', SUFFIX => 'bz2' },
+    dist => { COMPRESS => 'bzip2 -9f', SUFFIX => 'bz2' },
     clean => { FILES => 'Device-Blkid-*' },
 );
