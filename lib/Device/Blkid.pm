@@ -1,4 +1,4 @@
-# $Id: Blkid.pm,v 1.11 2009/10/21 21:02:59 bastian Exp $
+# $Id: Blkid.pm,v 1.12 2009/10/22 08:09:20 bastian Exp $
 # Copyright (c) 2007 Collax GmbH
 package Device::Blkid;
 
@@ -259,6 +259,8 @@ BLKID_FLTR_NOTIN
 =item
 
 BLKID_FLTR_ONLYIN
+
+=back
 
 =back
 
